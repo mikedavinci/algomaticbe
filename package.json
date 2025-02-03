@@ -4,8 +4,10 @@
   "description": "Algomatic Backend - NestJS with Hasura, Clerk, Stripe, and BullMQ",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "pnpm@8.15.1",
   "engines": {
     "node": "20.18.2",
+    "pnpm": "8.15.1",
     "npm": "10.8.2"
   },
   "scripts": {
