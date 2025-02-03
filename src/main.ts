@@ -9,20 +9,14 @@ import * as cookieParser from 'cookie-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     cors: true,
-    bodyParser: false,
+    bodyParser: true, // Enable default body parser
   });
   app.use(cookieParser());
 
-  // Configure body parser for webhooks
-  app.use('/webhooks/clerk', json({
-    verify: (req: any, res: any, buf: Buffer) => {
-      // Store raw body for webhook signature verification
-      req.rawBody = buf;
-    }
+  // Configure JSON body parser with increased limit for webhooks
+  app.use(json({
+    limit: '5mb'
   }));
-
-  // Default JSON parser for other routes
-  app.use(json());
 
   // Global validation pipe
   app.useGlobalPipes(

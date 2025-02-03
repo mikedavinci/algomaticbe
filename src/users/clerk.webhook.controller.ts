@@ -1,7 +1,6 @@
 import {
   Controller,
   Post,
-  Body,
   Headers,
   HttpException,
   HttpStatus,
@@ -12,19 +11,54 @@ import { ConfigService } from '@nestjs/config';
 import { Webhook } from 'svix';
 import { Public } from 'src/decorators/public.decorator';
 
-interface ClerkUserCreatedEvent {
+interface ClerkEmailData {
+  body: string;
+  body_plain: string;
   data: {
-    id: string;
-    email_addresses: Array<{
-      email_address: string;
-      id: string;
-      verification: {
-        status: string;
-      };
-    }>;
-    primary_email_address_id: string;
-    image_url: string;
+    app: {
+      domain_name: string;
+      logo_image_url: string;
+      logo_url: string | null;
+      name: string;
+      url: string;
+    };
+    otp_code: string;
+    requested_at: string;
+    requested_by: string;
+    requested_from: string;
+    theme: {
+      button_text_color: string;
+      primary_color: string;
+      show_clerk_branding: boolean;
+    };
+    user: {
+      public_metadata: any;
+      public_metadata_fallback: string;
+    };
   };
+  delivered_by_clerk: boolean;
+  email_address_id: string;
+  from_email_name: string;
+  id: string;
+  object: 'email';
+  reply_to_email_name: string | null;
+  slug: string;
+  status: string;
+  subject: string;
+  to_email_address: string;
+  user_id: string | null;
+}
+
+interface ClerkWebhookEvent {
+  data: ClerkEmailData;
+  event_attributes: {
+    http_request: {
+      client_ip: string;
+      user_agent: string;
+    };
+  };
+  object: 'event';
+  timestamp: number;
   type: string;
 }
 
@@ -41,15 +75,23 @@ export class ClerkWebhookController {
     @Headers('svix-id') svixId: string,
     @Headers('svix-timestamp') svixTimestamp: string,
     @Headers('svix-signature') svixSignature: string,
-    @Body() payload: ClerkUserCreatedEvent,
     @Req() request: any,
   ) {
-    console.log('Received webhook request with payload:', payload);
-    
-    if (!payload) {
-      console.error('No payload received in webhook request');
+    const rawBody = request.body;
+    let payload: ClerkWebhookEvent;
+
+    try {
+      payload = JSON.parse(rawBody.toString());
+      console.log('Received webhook request with payload:', {
+        type: payload.type,
+        emailId: payload.data.id,
+        to: payload.data.to_email_address,
+        subject: payload.data.subject
+      });
+    } catch (err) {
+      console.error('Failed to parse webhook payload:', err);
       throw new HttpException(
-        'No payload received',
+        'Invalid JSON payload',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -73,14 +115,6 @@ export class ClerkWebhookController {
 
     const wh = new Webhook(webhookSecret);
     try {
-      // Use the raw body buffer for verification
-      const rawBody = request.rawBody;
-      if (!rawBody) {
-        throw new Error('No raw body available for verification');
-      }
-      
-      console.log('Raw body for verification:', rawBody.toString());
-
       wh.verify(rawBody.toString(), {
         'svix-id': svixId,
         'svix-timestamp': svixTimestamp,
@@ -99,37 +133,33 @@ export class ClerkWebhookController {
       );
     }
 
-    // Only handle user.created events
-    if (payload.type !== 'user.created') {
+    // Only handle email.created events
+    if (payload.type !== 'email.created') {
+      console.log('Ignoring non-email.created event:', payload.type);
       return { success: true };
     }
 
-    // Find primary email
-    const primaryEmail = payload.data.email_addresses.find(
-      (email) => email.id === payload.data.primary_email_address_id,
-    );
-
-    if (!primaryEmail) {
-      throw new HttpException('No primary email found', HttpStatus.BAD_REQUEST);
-    }
-
-    // Create user in our database with additional Clerk data
+    // Process the email event
     try {
-      const user = await this.usersService.createUser(
-        payload.data.id,
-        primaryEmail.email_address,
-      );
-
-      // Update additional user data
-      await this.usersService.updateMetadata(payload.data.id, {
-        clerk_image_url: payload.data.image_url,
-        email_verified: primaryEmail.verification?.status === 'verified',
+      console.log('Processing email event:', {
+        type: 'email.created',
+        emailId: payload.data.id,
+        to: payload.data.to_email_address,
+        status: payload.data.status,
+        otp: payload.data.data.otp_code
       });
 
-      return { success: true, user };
+      // Here you can add any specific email processing logic
+      // For example, storing the OTP code, sending notifications, etc.
+
+      return { 
+        success: true,
+        message: `Successfully processed email ${payload.data.id}`
+      };
     } catch (error) {
+      console.error('Failed to process email event:', error);
       throw new HttpException(
-        'Failed to create user',
+        'Failed to process email event',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
