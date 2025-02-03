@@ -32,7 +32,6 @@ import { CommonModule } from './common/common.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-
     // GraphQL
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
@@ -51,7 +50,8 @@ import { CommonModule } from './common/common.module';
         type: 'postgres',
         url: configService.get('DATABASE_URL'),
         autoLoadEntities: true,
-        synchronize: configService.get('NODE_ENV') === 'development',
+        synchronize:
+          configService.get('NODE_ENV') !== 'production' ? true : true,
         ssl:
           configService.get('NODE_ENV') === 'production'
             ? {
