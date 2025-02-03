@@ -17,9 +17,11 @@ import * as express from 'express';
 export class QueueDashboardModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(express.static(join(__dirname, 'public'), {
-        index: false,
-      }))
-      .forRoutes('/queue-dashboard/*path');
+      .apply(
+        express.static(join(__dirname, 'public'), {
+          index: false,
+        }),
+      )
+      .forRoutes('/queue-dashboard/*');
   }
 }
