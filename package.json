@@ -3,9 +3,6 @@
   "version": "0.0.1",
   "description": "Algomatic Backend - NestJS with Hasura, Clerk, Stripe, and BullMQ",
   "private": true,
-  "engines": {
-    "node": ">=20.18.2"
-  },
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
