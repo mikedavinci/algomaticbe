@@ -20,6 +20,6 @@ export class QueueDashboardModule implements NestModule {
       .apply(express.static(join(__dirname, 'public'), {
         index: false,
       }))
-      .forRoutes('/queue-dashboard/*');
+      .forRoutes('/queue-dashboard/*path');
   }
 }
