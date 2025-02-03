@@ -75,21 +75,56 @@ export class ClerkWebhookController {
     @Headers('svix-id') svixId: string,
     @Headers('svix-timestamp') svixTimestamp: string,
     @Headers('svix-signature') svixSignature: string,
+    @Headers('content-type') contentType: string,
     @Req() request: any,
   ) {
-    const rawBody = request.body;
-    let payload: ClerkWebhookEvent;
+    console.log('Received webhook request:', {
+      headers: {
+        'svix-id': svixId,
+        'svix-timestamp': svixTimestamp,
+        'svix-signature': svixSignature,
+        'content-type': contentType
+      }
+    });
 
+    const rawBody = request.body;
+    console.log('Raw body type:', typeof rawBody);
+    console.log('Raw body instanceof Buffer:', rawBody instanceof Buffer);
+    
+    if (!rawBody) {
+      console.error('No body received in webhook request');
+      throw new HttpException(
+        'No body received',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    let rawBodyString: string;
+    if (rawBody instanceof Buffer) {
+      rawBodyString = rawBody.toString('utf8');
+    } else if (typeof rawBody === 'string') {
+      rawBodyString = rawBody;
+    } else {
+      rawBodyString = JSON.stringify(rawBody);
+    }
+
+    console.log('Raw body string:', rawBodyString.substring(0, 200) + '...');
+
+    let payload: ClerkWebhookEvent;
     try {
-      payload = JSON.parse(rawBody.toString());
-      console.log('Received webhook request with payload:', {
+      payload = JSON.parse(rawBodyString);
+      console.log('Parsed webhook payload:', {
         type: payload.type,
-        emailId: payload.data.id,
-        to: payload.data.to_email_address,
-        subject: payload.data.subject
+        emailId: payload.data?.id,
+        to: payload.data?.to_email_address,
+        subject: payload.data?.subject
       });
     } catch (err) {
-      console.error('Failed to parse webhook payload:', err);
+      console.error('Failed to parse webhook payload:', {
+        error: err.message,
+        rawBody: rawBodyString.substring(0, 200) + '...',
+        parseError: err
+      });
       throw new HttpException(
         'Invalid JSON payload',
         HttpStatus.BAD_REQUEST,
@@ -115,7 +150,7 @@ export class ClerkWebhookController {
 
     const wh = new Webhook(webhookSecret);
     try {
-      wh.verify(rawBody.toString(), {
+      wh.verify(rawBodyString, {
         'svix-id': svixId,
         'svix-timestamp': svixTimestamp,
         'svix-signature': svixSignature,

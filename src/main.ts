@@ -13,10 +13,14 @@ async function bootstrap() {
   });
   app.use(cookieParser());
 
-  // Configure JSON body parser with increased limit for webhooks
-  app.use(json({
+  // Configure raw body parser for webhooks
+  app.use('/webhooks/clerk', express.raw({
+    type: 'application/json',
     limit: '5mb'
   }));
+
+  // Default JSON parser for other routes
+  app.use(json());
 
   // Global validation pipe
   app.useGlobalPipes(
