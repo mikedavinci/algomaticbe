@@ -4,6 +4,10 @@
   "description": "Algomatic Backend - NestJS with Hasura, Clerk, Stripe, and BullMQ",
   "private": true,
   "license": "UNLICENSED",
+  "engines": {
+    "node": "20.18.2",
+    "npm": "10.8.2"
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
