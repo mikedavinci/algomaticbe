@@ -7,7 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { StripeService } from '../stripe.service';
-import { ClerkAuthGuard } from '../../auth/auth.guard';
+import { ClerkAuthGuard } from '../../auth/clerk-auth.guard';
 import {
   CreateCheckoutSessionDto,
   CreatePaymentIntentDto,

@@ -1,15 +1,12 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HasuraModule } from '../hasura/hasura.module';
-import { ClerkService } from './clerk.service';
-import { ClerkAuthGuard } from './auth.guard';
-import { ClerkWebhookController } from './clerk-webhook.controller';
-import { ClerkWebhookService } from './clerk-webhook.service';
+import { PassportModule } from '@nestjs/passport';
+import { ClerkClientProvider } from 'src/providers/clerk-client.provider';
 
 @Module({
-  imports: [ConfigModule, HasuraModule],
-  controllers: [ClerkWebhookController],
-  providers: [ClerkService, ClerkAuthGuard, ClerkWebhookService],
-  exports: [ClerkService, ClerkAuthGuard],
+  imports: [ConfigModule, HasuraModule, PassportModule],
+  providers: [ClerkClientProvider],
+  exports: [PassportModule],
 })
 export class AuthModule {}

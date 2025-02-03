@@ -1,5 +1,5 @@
 import { Controller, Get, Render, UseGuards } from '@nestjs/common';
-import { ClerkAuthGuard } from '../../auth/auth.guard';
+import { ClerkAuthGuard } from '../../auth/clerk-auth.guard';
 import { QueueService } from '../queue.service';
 
 @Controller('queue-dashboard')

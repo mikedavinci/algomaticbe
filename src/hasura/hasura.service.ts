@@ -1,42 +1,53 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GraphQLClient } from 'graphql-request';
 
 @Injectable()
-export class HasuraService {
-  private client: GraphQLClient;
+export class HasuraService implements OnModuleInit {
+  // Annotate the client property with the proper type.
+  private client!: GraphQLClient;
 
-  constructor(private configService: ConfigService) {
+  constructor(private configService: ConfigService) {}
+
+  async onModuleInit(): Promise<void> {
     const endpoint = this.configService.get<string>('HASURA_GRAPHQL_ENDPOINT');
-    const adminSecret = this.configService.get<string>('HASURA_GRAPHQL_ADMIN_SECRET');
+    const adminSecret = this.configService.get<string>(
+      'HASURA_GRAPHQL_ADMIN_SECRET',
+    );
 
     if (!endpoint) {
-      throw new Error('HASURA_GRAPHQL_ENDPOINT is not defined in environment variables');
+      throw new Error(
+        'HASURA_GRAPHQL_ENDPOINT is not defined in environment variables',
+      );
     }
 
     if (!adminSecret) {
-      throw new Error('HASURA_GRAPHQL_ADMIN_SECRET is not defined in environment variables');
+      throw new Error(
+        'HASURA_GRAPHQL_ADMIN_SECRET is not defined in environment variables',
+      );
     }
 
-    this.client = new GraphQLClient(
-      endpoint,
-      {
-        headers: {
-          'x-hasura-admin-secret': adminSecret,
-        },
+    // Now this.client is typed as GraphQLClient.
+    this.client = new GraphQLClient(endpoint, {
+      headers: {
+        'x-hasura-admin-secret': adminSecret,
       },
-    );
+    });
   }
 
   async executeQuery<T = any>(query: string, variables?: any): Promise<T> {
     try {
+      // Since client is now typed as GraphQLClient, you can safely use the generic here.
       return await this.client.request<T>(query, variables);
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Hasura query failed: ${error.message}`);
     }
   }
 
-  async trackTable(tableName: string, schemaName: string = 'public'): Promise<void> {
+  async trackTable(
+    tableName: string,
+    schemaName: string = 'public',
+  ): Promise<void> {
     const trackTableMutation = `
       mutation TrackTable($tableName: String!, $schemaName: String!) {
         track_table(table: { name: $tableName, schema: $schemaName }) {
@@ -44,7 +55,6 @@ export class HasuraService {
         }
       }
     `;
-
     await this.executeQuery(trackTableMutation, { tableName, schemaName });
   }
 
@@ -72,7 +82,6 @@ export class HasuraService {
         }
       }
     `;
-
     await this.executeQuery(createTriggerMutation, {
       name,
       tableName,

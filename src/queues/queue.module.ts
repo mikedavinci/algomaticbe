@@ -10,6 +10,7 @@ import { AnalyticsProcessor } from './processors/analytics.processor';
 import { CleanupProcessor } from './processors/cleanup.processor';
 import { QueueService } from './queue.service';
 import { QueueEventEmitter } from './notifications/queue-event.emitter';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { QueueEventEmitter } from './notifications/queue-event.emitter';
     }),
     HasuraModule,
     PaymentsModule,
+    EmailModule,
     BullModule.registerQueue(
       {
         name: 'email',

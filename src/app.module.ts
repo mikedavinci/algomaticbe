@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
@@ -20,6 +20,11 @@ import { QueueModule } from './queues/queue.module';
 import { QueueDashboardModule } from './queues/dashboard/queue-dashboard.module';
 import { RedisModule } from './redis/redis.module';
 import { EmailModule } from './email/email.module';
+import { clerkMiddleware } from '@clerk/express';
+import { ClerkClientProvider } from './providers/clerk-client.provider';
+import { APP_GUARD } from '@nestjs/core';
+import { ClerkAuthGuard } from './auth/clerk-auth.guard';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -33,7 +38,7 @@ import { EmailModule } from './email/email.module';
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
-      playground: true,
+      playground: false,
       subscriptions: {
         'graphql-ws': true,
       },
@@ -50,10 +55,13 @@ import { EmailModule } from './email/email.module';
         ssl:
           configService.get('NODE_ENV') === 'production'
             ? {
-                rejectUnauthorized: false,
+                rejectUnauthorized: true,
                 ca: configService.get('CA_CERT_PATH'),
               }
-            : false,
+            : {
+                rejectUnauthorized: false,
+                ca: configService.get('CA_CERT_PATH'),
+              },
       }),
       inject: [ConfigService],
     }),
@@ -87,6 +95,14 @@ import { EmailModule } from './email/email.module';
     QueueDashboardModule,
     RedisModule,
     EmailModule,
+    CommonModule,
+  ],
+  providers: [
+    ClerkClientProvider,
+    {
+      provide: APP_GUARD,
+      useClass: ClerkAuthGuard,
+    },
   ],
 })
 export class AppModule {}
