@@ -13,6 +13,17 @@ async function bootstrap() {
   });
   app.use(cookieParser());
 
+  // Configure body parser for webhooks
+  app.use('/webhooks/clerk', json({
+    verify: (req: any, res: any, buf: Buffer) => {
+      // Store raw body for webhook signature verification
+      req.rawBody = buf;
+    }
+  }));
+
+  // Default JSON parser for other routes
+  app.use(json());
+
   // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({

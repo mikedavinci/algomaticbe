@@ -5,6 +5,7 @@ import {
   Headers,
   HttpException,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { ConfigService } from '@nestjs/config';
@@ -41,6 +42,7 @@ export class ClerkWebhookController {
     @Headers('svix-timestamp') svixTimestamp: string,
     @Headers('svix-signature') svixSignature: string,
     @Body() payload: ClerkUserCreatedEvent,
+    @Req() request: any,
   ) {
     console.log('Received webhook request with payload:', payload);
     
@@ -71,14 +73,15 @@ export class ClerkWebhookController {
 
     const wh = new Webhook(webhookSecret);
     try {
-      const payloadString = JSON.stringify(payload);
-      console.log('Payload to verify:', payloadString);
-      
-      if (!payloadString) {
-        throw new Error('Failed to stringify payload');
+      // Use the raw body buffer for verification
+      const rawBody = request.rawBody;
+      if (!rawBody) {
+        throw new Error('No raw body available for verification');
       }
+      
+      console.log('Raw body for verification:', rawBody.toString());
 
-      wh.verify(payloadString, {
+      wh.verify(rawBody.toString(), {
         'svix-id': svixId,
         'svix-timestamp': svixTimestamp,
         'svix-signature': svixSignature,
@@ -87,7 +90,6 @@ export class ClerkWebhookController {
       console.error('Webhook verification failed:', {
         error: err.message,
         stack: err.stack,
-        payloadLength: JSON.stringify(payload).length,
         timestamp: new Date(parseInt(svixTimestamp) * 1000).toISOString(),
       });
       
