@@ -11,6 +11,7 @@ import { UsersService } from './users.service';
 import { ConfigService } from '@nestjs/config';
 import { Webhook } from 'svix';
 import { Public } from 'src/decorators/public.decorator';
+import { OtpService } from './otp.service';
 
 interface ClerkEmailData {
   body: string;
@@ -68,6 +69,7 @@ export class ClerkWebhookController {
   constructor(
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
+    private readonly otpService: OtpService,
   ) {}
 
   @Public()
@@ -163,12 +165,15 @@ export class ClerkWebhookController {
         otp: payload.data.data.otp_code
       });
 
-      // Here you can add any specific email processing logic
-      // For example, storing the OTP code, sending notifications, etc.
+      // Store the OTP code in Redis
+      await this.otpService.storeOtp(
+        payload.data.id,
+        payload.data.data.otp_code
+      );
 
       return { 
         success: true,
-        message: `Successfully processed email ${payload.data.id}`
+        message: `Successfully stored OTP for email ${payload.data.id}`
       };
     } catch (error) {
       console.error('Failed to process email event:', error);
