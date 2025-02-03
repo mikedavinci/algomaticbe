@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Queue Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .notification {
+            position: fixed;
+            right: 0;
+            top: 1rem;
+            z-index: 50;
+            transition: all 0.3s ease-in-out;
+            transform: translateX(100%);
+            width: 100%;
+            max-width: 24rem;
+        }
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .history-panel {
+            position: fixed;
+            right: -24rem;
+            top: 0;
+            bottom: 0;
+            width: 24rem;
+            background: white;
+            transition: all 0.3s ease-in-out;
+            z-index: 40;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .history-panel.open {
+            right: 0;
+        }
+        
+        .history-toggle {
+            position: fixed;
+            right: 1rem;
+            bottom: 1rem;
+            z-index: 41;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen">
+        <nav class="bg-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-4">
+                <div class="flex justify-between h-16">
+                    <div class="flex">
+                        <div class="flex-shrink-0 flex items-center">
+                            <h1 class="text-xl font-bold text-gray-800">Queue Dashboard</h1>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            <!-- Overview Cards -->
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="p-5">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">
+                                        Active Jobs
+                                    </dt>
+                                    <dd class="flex items-baseline">
+                                        <div class="text-2xl font-semibold text-gray-900" id="activeJobs">
+                                            0
+                                        </div>
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="p-5">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">
+                                        Completed Jobs
+                                    </dt>
+                                    <dd class="flex items-baseline">
+                                        <div class="text-2xl font-semibold text-gray-900" id="completedJobs">
+                                            0
+                                        </div>
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="p-5">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">
+                                        Failed Jobs
+                                    </dt>
+                                    <dd class="flex items-baseline">
+                                        <div class="text-2xl font-semibold text-gray-900" id="failedJobs">
+                                            0
+                                        </div>
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="p-5">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-5 w-0 flex-1">
+                                <dl>
+                                    <dt class="text-sm font-medium text-gray-500 truncate">
+                                        Waiting Jobs
+                                    </dt>
+                                    <dd class="flex items-baseline">
+                                        <div class="text-2xl font-semibold text-gray-900" id="waitingJobs">
+                                            0
+                                        </div>
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="p-5">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900">Queue Status</h3>
+                        <div class="mt-4">
+                            <canvas id="queueChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow rounded-lg">
+                    <div class="p-5">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900">Job Distribution</h3>
+                        <div class="mt-4">
+                            <canvas id="jobDistributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Queue Details Table -->
+            <div class="mt-8">
+                <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+                    <div class="px-4 py-5 sm:px-6">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900">
+                            Queue Details
+                        </h3>
+                    </div>
+                    <div class="border-t border-gray-200">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Queue Name
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Active
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Waiting
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Completed
+                                        </th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Failed
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="queueTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Notifications Container -->
+    <div id="notificationsContainer"></div>
+
+    <!-- History Panel Toggle Button -->
+    <button id="historyToggle" class="history-toggle bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-3 shadow-lg">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+    </button>
+
+    <!-- History Panel -->
+    <div id="historyPanel" class="history-panel">
+        <div class="h-full flex flex-col">
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                <h2 class="text-lg font-semibold text-gray-800">Notification History</h2>
+                <button id="clearHistory" class="text-sm text-red-600 hover:text-red-800">Clear All</button>
+            </div>
+            <div id="historyList" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- History items will be added here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize history panel state
+        let historyOpen = false;
+        const historyPanel = document.getElementById('historyPanel');
+        const historyToggle = document.getElementById('historyToggle');
+        const clearHistory = document.getElementById('clearHistory');
+        const historyList = document.getElementById('historyList');
+        
+        // Load history from localStorage
+        let notificationHistory = JSON.parse(localStorage.getItem('queueNotificationHistory') || '[]');
+        
+        // Update history display
+        function updateHistoryDisplay() {
+            historyList.innerHTML = '';
+            notificationHistory.forEach((event, index) => {
+                const historyItem = createHistoryItem(event);
+                historyList.appendChild(historyItem);
+            });
+        }
+        
+        // Create history item element
+        function createHistoryItem(event) {
+            const item = document.createElement('div');
+            
+            // Set background color based on event type
+            let bgColor = 'bg-blue-50 border-blue-200';
+            if (event.type === 'job.failed' || event.type === 'error') {
+                bgColor = 'bg-red-50 border-red-200';
+            } else if (event.type === 'job.completed') {
+                bgColor = 'bg-green-50 border-green-200';
+            } else if (event.type === 'job.stuck') {
+                bgColor = 'bg-yellow-50 border-yellow-200';
+            }
+            
+            item.className = `p-3 rounded-lg border ${bgColor}`;
+            item.innerHTML = `
+                <div class="flex flex-col">
+                    <div class="flex justify-between items-start">
+                        <span class="font-medium">${event.queue}</span>
+                        <span class="text-xs text-gray-500">${new Date(event.timestamp).toLocaleString()}</span>
+                    </div>
+                    <p class="text-sm mt-1">${event.message}</p>
+                </div>
+            `;
+            
+            return item;
+        }
+        
+        // Toggle history panel
+        historyToggle.addEventListener('click', () => {
+            historyOpen = !historyOpen;
+            historyPanel.classList.toggle('open', historyOpen);
+        });
+        
+        // Clear history
+        clearHistory.addEventListener('click', () => {
+            notificationHistory = [];
+            localStorage.setItem('queueNotificationHistory', JSON.stringify(notificationHistory));
+            updateHistoryDisplay();
+        });
+
+        // Initialize Socket.IO connection
+        const socket = io('/queue-dashboard');
+        
+        // Initialize charts
+        const queueCtx = document.getElementById('queueChart').getContext('2d');
+        const jobDistributionCtx = document.getElementById('jobDistributionChart').getContext('2d');
+
+        const queueChart = new Chart(queueCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Active Jobs',
+                        data: [],
+                        borderColor: 'rgb(59, 130, 246)',
+                        tension: 0.1
+                    },
+                    {
+                        label: 'Waiting Jobs',
+                        data: [],
+                        borderColor: 'rgb(251, 191, 36)',
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        const jobDistributionChart = new Chart(jobDistributionCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Active', 'Waiting', 'Completed', 'Failed'],
+                datasets: [{
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        'rgb(59, 130, 246)',
+                        'rgb(251, 191, 36)',
+                        'rgb(16, 185, 129)',
+                        'rgb(239, 68, 68)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true
+            }
+        });
+
+        // Update dashboard with new metrics
+        socket.on('metrics', (metrics) => {
+            updateOverviewCards(metrics);
+            updateCharts(metrics);
+            updateQueueTable(metrics);
+        });
+
+        function updateOverviewCards(metrics) {
+            let totalActive = 0;
+            let totalCompleted = 0;
+            let totalFailed = 0;
+            let totalWaiting = 0;
+
+            metrics.forEach(queue => {
+                totalActive += queue.metrics.active;
+                totalCompleted += queue.metrics.completed;
+                totalFailed += queue.metrics.failed;
+                totalWaiting += queue.metrics.waiting;
+            });
+
+            document.getElementById('activeJobs').textContent = totalActive;
+            document.getElementById('completedJobs').textContent = totalCompleted;
+            document.getElementById('failedJobs').textContent = totalFailed;
+            document.getElementById('waitingJobs').textContent = totalWaiting;
+        }
+
+        function updateCharts(metrics) {
+            // Update queue status chart
+            const timestamp = new Date().toLocaleTimeString();
+            const totalActive = metrics.reduce((sum, queue) => sum + queue.metrics.active, 0);
+            const totalWaiting = metrics.reduce((sum, queue) => sum + queue.metrics.waiting, 0);
+
+            if (queueChart.data.labels.length > 10) {
+                queueChart.data.labels.shift();
+                queueChart.data.datasets[0].data.shift();
+                queueChart.data.datasets[1].data.shift();
+            }
+
+            queueChart.data.labels.push(timestamp);
+            queueChart.data.datasets[0].data.push(totalActive);
+            queueChart.data.datasets[1].data.push(totalWaiting);
+            queueChart.update();
+
+            // Update job distribution chart
+            const totalCompleted = metrics.reduce((sum, queue) => sum + queue.metrics.completed, 0);
+            const totalFailed = metrics.reduce((sum, queue) => sum + queue.metrics.failed, 0);
+
+            jobDistributionChart.data.datasets[0].data = [
+                totalActive,
+                totalWaiting,
+                totalCompleted,
+                totalFailed
+            ];
+            jobDistributionChart.update();
+        }
+
+        function updateQueueTable(metrics) {
+            const tableBody = document.getElementById('queueTableBody');
+            tableBody.innerHTML = '';
+
+            metrics.forEach(queue => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${queue.name}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${queue.metrics.active}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${queue.metrics.waiting}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${queue.metrics.completed}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${queue.metrics.failed}
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+        // Handle queue events and notifications
+        socket.on('queueEvent', (event) => {
+            showNotification(event);
+            
+            // Add to history
+            notificationHistory.unshift(event);
+            // Keep only last 100 notifications
+            if (notificationHistory.length > 100) {
+                notificationHistory.pop();
+            }
+            // Save to localStorage
+            localStorage.setItem('queueNotificationHistory', JSON.stringify(notificationHistory));
+            // Update history display if panel is open
+            if (historyOpen) {
+                updateHistoryDisplay();
+            }
+        });
+
+        function showNotification(event) {
+            const container = document.getElementById('notificationsContainer');
+            const notification = document.createElement('div');
+            
+            // Set notification color based on event type
+            let bgColor = 'bg-blue-500';
+            if (event.type === 'job.failed' || event.type === 'error') {
+                bgColor = 'bg-red-500';
+            } else if (event.type === 'job.completed') {
+                bgColor = 'bg-green-500';
+            } else if (event.type === 'job.stuck') {
+                bgColor = 'bg-yellow-500';
+            }
+
+            notification.className = `notification ${bgColor} text-white p-4 rounded-lg shadow-lg mb-4 max-w-md`;
+            notification.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="font-bold">${event.queue}</h4>
+                        <p>${event.message}</p>
+                        <p class="text-sm opacity-75">${new Date(event.timestamp).toLocaleTimeString()}</p>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            `;
+
+            container.appendChild(notification);
+            
+            // Animate in
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, 5000);
+        }
+        
+        // Initial history display
+        updateHistoryDisplay();
+    </script>
+</body>
+</html>
