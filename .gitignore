@@ -3,3 +3,5 @@ node_modules
 dist
 .DS_Store
 ca-certificate.crt
+package-lock.json
+pnpm-lock.yaml
