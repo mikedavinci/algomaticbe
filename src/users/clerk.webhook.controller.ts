@@ -42,6 +42,16 @@ export class ClerkWebhookController {
     @Headers('svix-signature') svixSignature: string,
     @Body() payload: ClerkUserCreatedEvent,
   ) {
+    console.log('Received webhook request with payload:', payload);
+    
+    if (!payload) {
+      console.error('No payload received in webhook request');
+      throw new HttpException(
+        'No payload received',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     // Verify webhook signature
     const webhookSecret = this.configService.get<string>(
       'CLERK_WEBHOOK_SECRET',
@@ -64,6 +74,10 @@ export class ClerkWebhookController {
       const payloadString = JSON.stringify(payload);
       console.log('Payload to verify:', payloadString);
       
+      if (!payloadString) {
+        throw new Error('Failed to stringify payload');
+      }
+
       wh.verify(payloadString, {
         'svix-id': svixId,
         'svix-timestamp': svixTimestamp,
