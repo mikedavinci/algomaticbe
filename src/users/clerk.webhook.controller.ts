@@ -50,14 +50,33 @@ export class ClerkWebhookController {
       throw new Error('CLERK_WEBHOOK_SECRET is not configured');
     }
 
+    console.log('Webhook verification attempt:', {
+      secret: `${webhookSecret.substring(0, 5)}...`,
+      headers: {
+        'svix-id': svixId,
+        'svix-timestamp': svixTimestamp,
+        'svix-signature': svixSignature,
+      }
+    });
+
     const wh = new Webhook(webhookSecret);
     try {
-      wh.verify(JSON.stringify(payload), {
+      const payloadString = JSON.stringify(payload);
+      console.log('Payload to verify:', payloadString);
+      
+      wh.verify(payloadString, {
         'svix-id': svixId,
         'svix-timestamp': svixTimestamp,
         'svix-signature': svixSignature,
       });
     } catch (err) {
+      console.error('Webhook verification failed:', {
+        error: err.message,
+        stack: err.stack,
+        payloadLength: JSON.stringify(payload).length,
+        timestamp: new Date(parseInt(svixTimestamp) * 1000).toISOString(),
+      });
+      
       throw new HttpException(
         'Invalid webhook signature',
         HttpStatus.BAD_REQUEST,
