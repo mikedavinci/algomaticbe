@@ -13,10 +13,13 @@ async function bootstrap() {
   });
   app.use(cookieParser());
 
-  // Configure raw body parser for webhooks
-  app.use('/webhooks/clerk', express.raw({
-    type: 'application/json',
-    limit: '5mb'
+  // Configure JSON parser with higher limit for webhooks
+  app.use('/webhooks/clerk', json({
+    limit: '5mb',
+    verify: (req: any, res: any, buf: Buffer) => {
+      // Store raw body for webhook signature verification
+      req.rawBody = buf;
+    }
   }));
 
   // Default JSON parser for other routes
