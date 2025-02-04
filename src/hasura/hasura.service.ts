@@ -50,13 +50,12 @@ export class HasuraService implements OnModuleInit {
       const response = await axios.post(
         this.metadataEndpoint,
         {
-          type: 'track_table',
+          type: 'pg_track_table',
           args: {
-            table: {
-              schema: schemaName,
-              name: tableName,
-            },
-          },
+            source: 'default',
+            schema: schemaName,
+            name: tableName
+          }
         },
         {
           headers: {
@@ -90,6 +89,7 @@ export class HasuraService implements OnModuleInit {
           type: 'create_event_trigger',
           args: {
             name,
+            source: 'default',
             table: {
               schema: 'public',
               name: tableName,
