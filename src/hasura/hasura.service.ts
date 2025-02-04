@@ -36,8 +36,19 @@ export class HasuraService implements OnModuleInit {
 
   async executeQuery<T = any>(query: string, variables?: any): Promise<T> {
     try {
-      return await this.client.request<T>(query, variables);
+      console.log('Executing Hasura query:', {
+        query: query.substring(0, 100) + '...',
+        variables,
+      });
+      const result = await this.client.request<T>(query, variables);
+      console.log('Hasura query result:', result);
+      return result;
     } catch (error: any) {
+      console.error('Hasura query failed:', {
+        error: error.message,
+        response: error.response?.errors,
+        variables,
+      });
       throw new Error(`Hasura query failed: ${error.message}`);
     }
   }

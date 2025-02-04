@@ -60,22 +60,20 @@ export class ClerkWebhookController {
       svixId,
       svixTimestamp,
       eventType: payload.type,
-      payload,
+      payload: JSON.stringify(payload).substring(0, 500),
     });
 
     if (!svixId || !svixTimestamp || !svixSignature) {
-      throw new HttpException(
-        'Missing webhook verification headers',
-        HttpStatus.BAD_REQUEST,
-      );
+      const error = 'Missing webhook verification headers';
+      console.error(error, { svixId, svixTimestamp, svixSignature });
+      throw new HttpException(error, HttpStatus.BAD_REQUEST);
     }
 
     const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
     if (!webhookSecret) {
-      throw new HttpException(
-        'Webhook secret not configured',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      const error = 'Webhook secret not configured';
+      console.error(error);
+      throw new HttpException(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     // Verify webhook signature
@@ -91,12 +89,14 @@ export class ClerkWebhookController {
           'svix-signature': svixSignature,
         },
       );
+      console.log('Webhook signature verified successfully');
     } catch (err) {
-      console.error('Webhook verification failed:', err);
-      throw new HttpException(
-        'Invalid webhook signature',
-        HttpStatus.BAD_REQUEST,
-      );
+      console.error('Webhook verification failed:', {
+        error: err.message,
+        stack: err.stack,
+        payload: JSON.stringify(payload).substring(0, 500),
+      });
+      throw new HttpException('Invalid webhook signature', HttpStatus.BAD_REQUEST);
     }
 
     // Handle different webhook events

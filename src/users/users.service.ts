@@ -23,15 +23,20 @@ export class UsersService {
 
     try {
       let stripeCustomerId: string | undefined;
-      // note
 
       // Create Stripe customer if needed
       if (options.createStripeCustomer) {
-        console.log('Creating Stripe customer...');
-        stripeCustomerId = await this.stripeService.createCustomer(id, email);
-        console.log('Stripe customer created successfully:', {
-          stripeCustomerId,
-        });
+        console.log('Creating Stripe customer...', { id, email });
+        try {
+          stripeCustomerId = await this.stripeService.createCustomer(id, email);
+          console.log('Stripe customer created successfully:', { stripeCustomerId });
+        } catch (stripeError) {
+          console.error('Failed to create Stripe customer:', {
+            error: stripeError.message,
+            stack: stripeError.stack,
+          });
+          throw new Error(`Stripe customer creation failed: ${stripeError.message}`);
+        }
       }
 
       // Create user with all fields at once
