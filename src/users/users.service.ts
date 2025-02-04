@@ -10,49 +10,68 @@ export class UsersService {
     private readonly hasuraService: HasuraService,
   ) {}
 
-  async createUser(id: string, email: string): Promise<User> {
-    console.log('Starting user creation in UsersService:', { id, email });
+  async createUser(
+    id: string, 
+    email: string, 
+    options: { 
+      emailVerified?: boolean;
+      imageUrl?: string;
+      createStripeCustomer?: boolean;
+    } = { createStripeCustomer: true }
+  ): Promise<User> {
+    console.log('Starting user creation in UsersService:', { id, email, options });
 
     try {
-      // Create Stripe customer
-      console.log('Creating Stripe customer...');
-      const stripeCustomerId = await this.stripeService.createCustomer(id, email);
-      console.log('Stripe customer created successfully:', { stripeCustomerId });
+      let stripeCustomerId: string | undefined;
 
-      // Create user entity
-      console.log('Creating user entity...');
+      // Create Stripe customer if needed
+      if (options.createStripeCustomer) {
+        console.log('Creating Stripe customer...');
+        stripeCustomerId = await this.stripeService.createCustomer(id, email);
+        console.log('Stripe customer created successfully:', { stripeCustomerId });
+      }
+
+      // Create user with all fields at once
       const mutation = `
-        mutation CreateUser($id: uuid!, $email: String!, $stripeCustomerId: String!) {
-          insert_users_one(object: { id: $id, email: $email, stripe_customer_id: $stripeCustomerId }) {
+        mutation CreateUser(
+          $id: uuid!, 
+          $email: String!, 
+          $emailVerified: Boolean,
+          $imageUrl: String,
+          $stripeCustomerId: String
+        ) {
+          insert_users_one(object: {
+            id: $id,
+            email: $email,
+            email_verified: $emailVerified,
+            clerk_image_url: $imageUrl,
+            stripe_customer_id: $stripeCustomerId
+          }) {
             id
             email
+            email_verified
+            clerk_image_url
             stripe_customer_id
+            created_at
+            updated_at
           }
         }
       `;
 
-      try {
-        const result = await this.hasuraService.executeQuery(mutation, {
-          id,
-          email,
-          stripeCustomerId,
-        });
+      const result = await this.hasuraService.executeQuery(mutation, {
+        id,
+        email,
+        emailVerified: options.emailVerified ?? false,
+        imageUrl: options.imageUrl,
+        stripeCustomerId
+      });
 
-        if (!result?.insert_users_one) {
-          throw new NotFoundException(`User with ID ${id} not found`);
-        }
-
-        console.log('User created successfully:', result.insert_users_one);
-        return result.insert_users_one;
-      } catch (dbError) {
-        console.error('Database error while creating user:', {
-          error: dbError.message,
-          stack: dbError.stack,
-          code: dbError.code,
-          detail: dbError.detail,
-        });
-        throw dbError;
+      if (!result?.insert_users_one) {
+        throw new Error('Failed to create user in database');
       }
+
+      console.log('User created successfully:', result.insert_users_one);
+      return result.insert_users_one;
     } catch (error) {
       console.error('Error in createUser:', {
         error: error.message,
