@@ -9,7 +9,7 @@
     "npm": ">=10.8.2"
   },
   "scripts": {
-    "build": "npm install -g @nestjs/cli && nest build",
+    "build": "nest build",
     "build:digitalocean": "npm install && npm run build && npm ci",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
