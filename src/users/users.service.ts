@@ -1,15 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../entities/user.entity';
 import { StripeService } from '../payments/stripe.service';
 import { HasuraService } from '../hasura/hasura.service';
+import { User } from '../entities/user.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(User)
-    private readonly usersRepository: Repository<User>,
     private readonly stripeService: StripeService,
     private readonly hasuraService: HasuraService,
   ) {}
@@ -25,26 +21,35 @@ export class UsersService {
 
       // Create user entity
       console.log('Creating user entity...');
-      const user = this.usersRepository.create({
-        id,
-        email,
-        stripe_customer_id: stripeCustomerId,
-      });
-      console.log('User entity created:', user);
+      const mutation = `
+        mutation CreateUser($id: uuid!, $email: String!, $stripeCustomerId: String!) {
+          insert_users_one(object: { id: $id, email: $email, stripe_customer_id: $stripeCustomerId }) {
+            id
+            email
+            stripe_customer_id
+          }
+        }
+      `;
 
-      // Save to database using TypeORM
-      console.log('Attempting to save user to database...');
       try {
-        const savedUser = await this.usersRepository.save(user);
-        console.log('User saved successfully:', savedUser);
-        return savedUser;
+        const result = await this.hasuraService.executeQuery(mutation, {
+          id,
+          email,
+          stripeCustomerId,
+        });
+
+        if (!result?.insert_users_one) {
+          throw new NotFoundException(`User with ID ${id} not found`);
+        }
+
+        console.log('User created successfully:', result.insert_users_one);
+        return result.insert_users_one;
       } catch (dbError) {
-        console.error('Database error while saving user:', {
+        console.error('Database error while creating user:', {
           error: dbError.message,
           stack: dbError.stack,
           code: dbError.code,
           detail: dbError.detail,
-          user
         });
         throw dbError;
       }
@@ -57,37 +62,95 @@ export class UsersService {
     }
   }
 
-  async findById(id: string): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { id } });
-  }
-
-  async updateMetadata(id: string, metadata: Record<string, any>): Promise<User> {
-    const updateMetadataMutation = `
-      mutation UpdateUserMetadata($id: uuid!, $metadata: jsonb) {
+  async updateUserStripeCustomerId(userId: string, customerId: string): Promise<void> {
+    const mutation = `
+      mutation UpdateUserStripeCustomer($userId: uuid!, $customerId: String!) {
         update_users(
-          where: { id: { _eq: $id } }
-          _set: { metadata: $metadata }
+          where: { id: { _eq: $userId } }
+          _set: { stripe_customer_id: $customerId }
         ) {
           affected_rows
+          returning {
+            id
+            email
+            stripe_customer_id
+          }
         }
       }
     `;
 
     try {
-      const result = await this.hasuraService.executeQuery(updateMetadataMutation, {
+      const result = await this.hasuraService.executeQuery(mutation, {
+        userId,
+        customerId,
+      });
+
+      if (!result?.update_users?.affected_rows) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+
+      console.log('Successfully updated user stripe customer ID:', result.update_users.returning[0]);
+    } catch (error) {
+      console.error('Error updating user stripe customer ID:', error);
+      throw error;
+    }
+  }
+
+  async findById(id: string): Promise<User | null> {
+    const query = `
+      query GetUserById($id: uuid!) {
+        users_by_pk(id: $id) {
+          id
+          email
+          stripe_customer_id
+          metadata
+          clerk_image_url
+          email_verified
+          created_at
+          updated_at
+        }
+      }
+    `;
+
+    try {
+      const result = await this.hasuraService.executeQuery(query, { id });
+      return result?.users_by_pk || null;
+    } catch (error) {
+      console.error('Error finding user by ID:', error);
+      throw error;
+    }
+  }
+
+  async updateMetadata(id: string, metadata: Record<string, any>): Promise<User> {
+    const mutation = `
+      mutation UpdateUserMetadata($id: uuid!, $metadata: jsonb!) {
+        update_users_by_pk(
+          pk_columns: { id: $id }
+          _set: { metadata: $metadata }
+        ) {
+          id
+          email
+          metadata
+          stripe_customer_id
+          clerk_image_url
+          email_verified
+          created_at
+          updated_at
+        }
+      }
+    `;
+
+    try {
+      const result = await this.hasuraService.executeQuery(mutation, {
         id,
         metadata,
       });
 
-      if (!result?.update_users?.affected_rows) {
+      if (!result?.update_users_by_pk) {
         throw new NotFoundException(`User with ID ${id} not found`);
       }
 
-      const user = await this.findById(id);
-      if (!user) {
-        throw new NotFoundException(`User with ID ${id} not found`);
-      }
-      return user;
+      return result.update_users_by_pk;
     } catch (error) {
       console.error('Error updating user metadata:', error);
       throw error;
