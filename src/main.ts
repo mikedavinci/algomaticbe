@@ -1,8 +1,6 @@
-import { AppModule } from './app.module';
-import express from 'express';
 import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json } from 'express';
 import * as cookieParser from 'cookie-parser';
 
@@ -15,7 +13,7 @@ async function bootstrap() {
 
   // Parse raw body for webhooks
   app.use(
-    express.json({
+    json({
       verify: (req: any, res, buf) => {
         // Make raw body available for webhook signature verification
         req.rawBody = buf;
@@ -26,34 +24,9 @@ async function bootstrap() {
   // Configure JSON parser with higher limit for webhooks
   app.use('/webhooks/clerk', json({
     limit: '5mb',
-    verify: (req: any, res: any, buf: Buffer) => {
-      // Store raw body for webhook signature verification
-      req.rawBody = buf;
-    }
   }));
 
-  // Default JSON parser for other routes
-  app.use(json());
-
-  // Global validation pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
-  // Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('Algomatic API')
-    .setDescription('The Algomatic API documentation')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  app.useGlobalPipes(new ValidationPipe());
 
   const port = process.env.PORT || 8001;
   await app.listen(port);
