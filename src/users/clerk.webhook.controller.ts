@@ -178,9 +178,9 @@ export class ClerkWebhookController {
 
     // Handle different event types
     if (payload.type === 'user.created') {
-      console.log('Received user.created event:', {
+      console.log('Received user.created webhook:', {
         type: payload.type,
-        data: JSON.stringify(payload.data, null, 2)
+        rawData: JSON.stringify(payload.data, null, 2)
       });
 
       try {
@@ -203,7 +203,7 @@ export class ClerkWebhookController {
           throw new Error('No primary email found for user');
         }
 
-        console.log('Creating user with:', {
+        console.log('Calling UsersService.createUser with:', {
           id: userData.id,
           email: primaryEmail.email_address
         });
@@ -213,13 +213,17 @@ export class ClerkWebhookController {
           primaryEmail.email_address
         );
 
-        console.log('Successfully created user:', {
+        console.log('User creation completed:', {
           userId: newUser.id,
           email: newUser.email,
           stripeCustomerId: newUser.stripe_customer_id
         });
 
-        return { success: true };
+        return { 
+          success: true,
+          message: `Successfully created user ${newUser.id}`,
+          user: newUser
+        };
       } catch (error) {
         console.error('Failed to create user:', {
           error: error.message,

@@ -13,27 +13,39 @@ export class UsersService {
   ) {}
 
   async createUser(id: string, email: string): Promise<User> {
-    console.log('Starting user creation process:', { id, email });
+    console.log('Starting user creation in UsersService:', { id, email });
 
     try {
       // Create Stripe customer
       console.log('Creating Stripe customer...');
       const stripeCustomerId = await this.stripeService.createCustomer(id, email);
-      console.log('Stripe customer created:', { stripeCustomerId });
+      console.log('Stripe customer created successfully:', { stripeCustomerId });
 
-      // Create user with Stripe customer ID
-      console.log('Creating user in database...');
+      // Create user entity
+      console.log('Creating user entity...');
       const user = this.usersRepository.create({
         id,
         email,
         stripe_customer_id: stripeCustomerId,
       });
+      console.log('User entity created:', user);
 
-      console.log('Saving user to database:', user);
-      const savedUser = await this.usersRepository.save(user);
-      console.log('User saved successfully:', savedUser);
-
-      return savedUser;
+      // Attempt to save to database
+      console.log('Attempting to save user to database...');
+      try {
+        const savedUser = await this.usersRepository.save(user);
+        console.log('User saved successfully:', savedUser);
+        return savedUser;
+      } catch (dbError) {
+        console.error('Database error while saving user:', {
+          error: dbError.message,
+          stack: dbError.stack,
+          code: dbError.code,
+          detail: dbError.detail,
+          user
+        });
+        throw dbError;
+      }
     } catch (error) {
       console.error('Error in createUser:', {
         error: error.message,
