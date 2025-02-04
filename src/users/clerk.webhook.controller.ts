@@ -116,12 +116,22 @@ export class ClerkWebhookController {
       );
     }
 
-    console.log('Received webhook payload:', {
+    // Log ALL incoming webhook events for debugging
+    console.log('Webhook event received:', {
       type: payload.type,
-      emailId: (payload.data as ClerkEmailData)?.id,
-      to: (payload.data as ClerkEmailData)?.to_email_address,
-      subject: (payload.data as ClerkEmailData)?.subject
+      object: payload.object,
+      timestamp: new Date(payload.timestamp * 1000).toISOString()
     });
+
+    // Log the raw payload for debugging
+    console.log('Raw webhook payload:', JSON.stringify(payload, null, 2));
+
+    console.log('Full webhook payload:', JSON.stringify({
+      type: payload.type,
+      data: payload.data,
+      timestamp: payload.timestamp,
+      object: payload.object
+    }, null, 2));
 
     // Verify webhook signature
     const webhookSecret = this.configService.get<string>(
@@ -170,18 +180,33 @@ export class ClerkWebhookController {
     if (payload.type === 'user.created') {
       console.log('Received user.created event:', {
         type: payload.type,
-        data: payload.data
+        data: JSON.stringify(payload.data, null, 2)
       });
 
       try {
         const userData = payload.data as ClerkUserData;
-        const primaryEmail = userData.email_addresses.find(
+        console.log('Processing user data:', {
+          id: userData.id,
+          emailAddresses: userData.email_addresses,
+          primaryEmailId: userData.primary_email_address_id
+        });
+
+        const primaryEmail = userData.email_addresses?.find(
           email => email.id === userData.primary_email_address_id
         );
 
         if (!primaryEmail) {
+          console.error('No primary email found:', {
+            emailAddresses: userData.email_addresses,
+            primaryEmailId: userData.primary_email_address_id
+          });
           throw new Error('No primary email found for user');
         }
+
+        console.log('Creating user with:', {
+          id: userData.id,
+          email: primaryEmail.email_address
+        });
 
         const newUser = await this.usersService.createUser(
           userData.id,
@@ -199,10 +224,10 @@ export class ClerkWebhookController {
         console.error('Failed to create user:', {
           error: error.message,
           stack: error.stack,
-          data: payload.data
+          data: JSON.stringify(payload.data, null, 2)
         });
         throw new HttpException(
-          'Failed to create user',
+          'Failed to create user: ' + error.message,
           HttpStatus.INTERNAL_SERVER_ERROR,
         );
       }

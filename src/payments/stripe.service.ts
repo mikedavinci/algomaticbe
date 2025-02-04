@@ -131,11 +131,18 @@ export class StripeService {
 
   async createCustomer(userId: string, email: string): Promise<string> {
     try {
+      console.log('Creating Stripe customer:', { userId, email });
+      
       const customer = await this.stripe.customers.create({
         email,
         metadata: {
           userId,
         },
+      });
+      
+      console.log('Stripe customer created:', {
+        customerId: customer.id,
+        email: customer.email
       });
 
       const updateUserMutation = `
@@ -149,14 +156,26 @@ export class StripeService {
         }
       `;
 
+      console.log('Updating user with Stripe customer ID:', {
+        userId,
+        customerId: customer.id
+      });
+
       await this.hasuraService.executeQuery(updateUserMutation, {
         userId,
         customerId: customer.id,
       });
 
+      console.log('Successfully updated user with Stripe customer ID');
+
       return customer.id;
     } catch (error) {
-      this.logger.error(`Error creating Stripe customer: ${error.message}`);
+      console.error('Error creating Stripe customer:', {
+        error: error.message,
+        stack: error.stack,
+        userId,
+        email
+      });
       throw error;
     }
   }

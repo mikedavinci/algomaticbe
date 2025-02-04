@@ -13,17 +13,36 @@ export class UsersService {
   ) {}
 
   async createUser(id: string, email: string): Promise<User> {
-    // Create Stripe customer
-    const stripeCustomerId = await this.stripeService.createCustomer(id, email);
+    console.log('Starting user creation process:', { id, email });
 
-    // Create user with Stripe customer ID
-    const user = this.usersRepository.create({
-      id,
-      email,
-      stripe_customer_id: stripeCustomerId,
-    });
+    try {
+      // Create Stripe customer
+      console.log('Creating Stripe customer...');
+      const stripeCustomerId = await this.stripeService.createCustomer(id, email);
+      console.log('Stripe customer created:', { stripeCustomerId });
 
-    return this.usersRepository.save(user);
+      // Create user with Stripe customer ID
+      console.log('Creating user in database...');
+      const user = this.usersRepository.create({
+        id,
+        email,
+        stripe_customer_id: stripeCustomerId,
+      });
+
+      console.log('Saving user to database:', user);
+      const savedUser = await this.usersRepository.save(user);
+      console.log('User saved successfully:', savedUser);
+
+      return savedUser;
+    } catch (error) {
+      console.error('Error in createUser:', {
+        error: error.message,
+        stack: error.stack,
+        id,
+        email
+      });
+      throw error;
+    }
   }
 
   async findById(id: string): Promise<User | null> {
