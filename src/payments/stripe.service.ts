@@ -131,18 +131,33 @@ export class StripeService {
 
   async createCustomer(userId: string, email: string): Promise<string> {
     try {
-      console.log('Creating Stripe customer:', { userId, email });
-      
+      // First, search for existing customers with the same email
+      const existingCustomers = await this.stripe.customers.list({
+        email: email,
+        limit: 1,
+      });
+
+      // If a customer exists with this email, return their ID
+      if (existingCustomers.data.length > 0) {
+        const existingCustomer = existingCustomers.data[0];
+        console.log('Found existing Stripe customer:', {
+          customerId: existingCustomer.id,
+          email,
+        });
+        return existingCustomer.id;
+      }
+
+      // If no customer exists, create a new one
       const customer = await this.stripe.customers.create({
         email,
         metadata: {
           userId,
         },
       });
-      
-      console.log('Stripe customer created:', {
+
+      console.log('Created new Stripe customer:', {
         customerId: customer.id,
-        email: customer.email
+        email,
       });
 
       const updateUserMutation = `
