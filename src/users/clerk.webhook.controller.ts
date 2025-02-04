@@ -53,16 +53,17 @@ export class ClerkWebhookController {
     @Headers('svix-timestamp') svixTimestamp: string,
     @Headers('svix-signature') svixSignature: string,
     @Headers('content-type') contentType: string,
-    @Body() payload: any,
     @Req() request: any,
   ) {
     try {
+      const rawBody = request.rawBody;
+      const payload = JSON.parse(rawBody.toString());
+
       console.log('Received Clerk webhook:', {
         svixId,
         svixTimestamp,
         eventType: payload.type,
         payload: JSON.stringify(payload, null, 2).substring(0, 1000),
-        headers: request.headers,
       });
 
       if (!svixId || !svixTimestamp || !svixSignature) {
@@ -82,20 +83,7 @@ export class ClerkWebhookController {
       const wh = new Webhook(webhookSecret);
 
       try {
-        const rawBody = request.rawBody;
-        if (!rawBody) {
-          throw new Error('No raw body available for webhook verification');
-        }
-
-        console.log('Verifying webhook with:', {
-          rawBody: rawBody.toString().substring(0, 500),
-          headers: {
-            'svix-id': svixId,
-            'svix-timestamp': svixTimestamp,
-            'svix-signature': svixSignature,
-          }
-        });
-
+        console.log('Verifying webhook signature...');
         wh.verify(rawBody, {
           'svix-id': svixId,
           'svix-timestamp': svixTimestamp,
@@ -106,7 +94,6 @@ export class ClerkWebhookController {
         console.error('Webhook verification failed:', {
           error: err.message,
           stack: err.stack,
-          payload: JSON.stringify(payload).substring(0, 500),
         });
         throw new HttpException('Invalid webhook signature', HttpStatus.BAD_REQUEST);
       }
@@ -134,8 +121,6 @@ export class ClerkWebhookController {
       console.error('Error processing webhook:', {
         error: error.message,
         stack: error.stack,
-        type: payload?.type,
-        data: payload?.data ? JSON.stringify(payload.data).substring(0, 500) : null
       });
       throw new HttpException(
         `Failed to process webhook: ${error.message}`,

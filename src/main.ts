@@ -1,32 +1,35 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { json } from 'express';
 import * as cookieParser from 'cookie-parser';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { raw } from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    cors: true,
-    bodyParser: false, // Disable default body parser
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  
+  // Enable CORS - allow all origins for webhooks
+  app.enableCors({
+    origin: '*',  // Allow all origins for webhooks
+    credentials: true,
   });
+
   app.use(cookieParser());
 
-  // Parse raw body for webhooks
-  app.use(
-    json({
-      verify: (req: any, res, buf) => {
-        // Make raw body available for webhook signature verification
-        req.rawBody = buf;
-      },
-    }),
-  );
-
-  // Configure JSON parser with higher limit for webhooks
-  app.use('/webhooks/clerk', json({
-    limit: '5mb',
+  // Add raw body parser for webhook routes
+  app.use('/webhook/clerk', raw({ 
+    type: 'application/json',
+    verify: (req: any, res, buf) => {
+      req.rawBody = buf;
+    }
   }));
 
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    })
+  );
 
   const port = process.env.PORT || 8001;
   await app.listen(port);
