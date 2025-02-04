@@ -23,12 +23,15 @@ export class UsersService {
 
     try {
       let stripeCustomerId: string | undefined;
+      // note
 
       // Create Stripe customer if needed
       if (options.createStripeCustomer) {
         console.log('Creating Stripe customer...');
         stripeCustomerId = await this.stripeService.createCustomer(id, email);
-        console.log('Stripe customer created successfully:', { stripeCustomerId });
+        console.log('Stripe customer created successfully:', {
+          stripeCustomerId,
+        });
       }
 
       // Create user with all fields at once
@@ -63,7 +66,7 @@ export class UsersService {
         email,
         emailVerified: options.emailVerified ?? false,
         imageUrl: options.imageUrl,
-        stripeCustomerId
+        stripeCustomerId,
       });
 
       if (!result?.insert_users_one) {
