@@ -53,52 +53,54 @@ export class ClerkWebhookController {
     @Headers('svix-timestamp') svixTimestamp: string,
     @Headers('svix-signature') svixSignature: string,
     @Headers('content-type') contentType: string,
+    @Body() payload: any,
     @Req() request: any,
   ) {
+    console.log('Received Clerk webhook:', {
+      svixId,
+      svixTimestamp,
+      eventType: payload.type,
+      payload: JSON.stringify(payload).substring(0, 500),
+    });
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      const error = 'Missing webhook verification headers';
+      console.error(error, { svixId, svixTimestamp, svixSignature });
+      throw new HttpException(error, HttpStatus.BAD_REQUEST);
+    }
+
+    const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
+    if (!webhookSecret) {
+      const error = 'Webhook secret not configured';
+      console.error(error);
+      throw new HttpException(error, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    // Verify webhook signature
+    const wh = new Webhook(webhookSecret);
+
     try {
       const rawBody = request.rawBody;
-      const payload = JSON.parse(rawBody.toString());
+      if (!rawBody) {
+        throw new Error('No raw body available for webhook verification');
+      }
 
-      console.log('Received Clerk webhook:', {
-        svixId,
-        svixTimestamp,
-        eventType: payload.type,
-        payload: JSON.stringify(payload, null, 2).substring(0, 1000),
+      wh.verify(rawBody, {
+        'svix-id': svixId,
+        'svix-timestamp': svixTimestamp,
+        'svix-signature': svixSignature,
       });
+      console.log('Webhook signature verified successfully');
+    } catch (err) {
+      console.error('Webhook verification failed:', {
+        error: err.message,
+        stack: err.stack,
+      });
+      throw new HttpException('Invalid webhook signature', HttpStatus.BAD_REQUEST);
+    }
 
-      if (!svixId || !svixTimestamp || !svixSignature) {
-        const error = 'Missing webhook verification headers';
-        console.error(error, { svixId, svixTimestamp, svixSignature });
-        throw new HttpException(error, HttpStatus.BAD_REQUEST);
-      }
-
-      const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
-      if (!webhookSecret) {
-        const error = 'Webhook secret not configured';
-        console.error(error);
-        throw new HttpException(error, HttpStatus.INTERNAL_SERVER_ERROR);
-      }
-
-      // Verify webhook signature
-      const wh = new Webhook(webhookSecret);
-
-      try {
-        console.log('Verifying webhook signature...');
-        wh.verify(rawBody, {
-          'svix-id': svixId,
-          'svix-timestamp': svixTimestamp,
-          'svix-signature': svixSignature,
-        });
-        console.log('Webhook signature verified successfully');
-      } catch (err) {
-        console.error('Webhook verification failed:', {
-          error: err.message,
-          stack: err.stack,
-        });
-        throw new HttpException('Invalid webhook signature', HttpStatus.BAD_REQUEST);
-      }
-
-      // Handle different webhook events
+    // Handle different webhook events
+    try {
       console.log('Processing webhook event:', {
         type: payload.type,
         data: JSON.stringify(payload.data, null, 2).substring(0, 500)
@@ -121,6 +123,8 @@ export class ClerkWebhookController {
       console.error('Error processing webhook:', {
         error: error.message,
         stack: error.stack,
+        type: payload?.type,
+        data: payload?.data ? JSON.stringify(payload.data).substring(0, 500) : null
       });
       throw new HttpException(
         `Failed to process webhook: ${error.message}`,
