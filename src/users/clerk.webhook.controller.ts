@@ -51,14 +51,31 @@ interface ClerkEmailData {
   user_id: string | null;
 }
 
+interface ClerkUserData {
+  id: string;
+  email_addresses: Array<{
+    id: string;
+    email_address: string;
+    verified: boolean;
+  }>;
+  primary_email_address_id: string;
+  image_url: string | null;
+}
+
 interface ClerkWebhookEvent {
-  data: ClerkEmailData;
+  data: ClerkEmailData | ClerkUserData;
   event_attributes: {
     http_request: {
       client_ip: string;
       user_agent: string;
     };
   };
+  http_request: {
+    client_ip: string;
+    user_agent: string;
+  };
+  client_ip: string;
+  user_agent: string;
   object: 'event';
   timestamp: number;
   type: string;
@@ -101,9 +118,9 @@ export class ClerkWebhookController {
 
     console.log('Received webhook payload:', {
       type: payload.type,
-      emailId: payload.data?.id,
-      to: payload.data?.to_email_address,
-      subject: payload.data?.subject
+      emailId: (payload.data as ClerkEmailData)?.id,
+      to: (payload.data as ClerkEmailData)?.to_email_address,
+      subject: (payload.data as ClerkEmailData)?.subject
     });
 
     // Verify webhook signature
@@ -149,38 +166,72 @@ export class ClerkWebhookController {
       );
     }
 
-    // Only handle email.created events
-    if (payload.type !== 'email.created') {
-      console.log('Ignoring non-email.created event:', payload.type);
-      return { success: true };
+    // Handle different event types
+    if (payload.type === 'user.created') {
+      console.log('Received user.created event:', {
+        type: payload.type,
+        data: payload.data
+      });
+
+      try {
+        const userData = payload.data as ClerkUserData;
+        const primaryEmail = userData.email_addresses.find(
+          email => email.id === userData.primary_email_address_id
+        );
+
+        if (!primaryEmail) {
+          throw new Error('No primary email found for user');
+        }
+
+        const newUser = await this.usersService.createUser(
+          userData.id,
+          primaryEmail.email_address
+        );
+
+        console.log('Successfully created user:', {
+          userId: newUser.id,
+          email: newUser.email,
+          stripeCustomerId: newUser.stripe_customer_id
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error('Failed to create user:', {
+          error: error.message,
+          stack: error.stack,
+          data: payload.data
+        });
+        throw new HttpException(
+          'Failed to create user',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
     }
 
-    // Process the email event
-    try {
+    // Handle email.created events
+    if (payload.type === 'email.created') {
+      const emailData = payload.data as ClerkEmailData;
       console.log('Processing email event:', {
         type: 'email.created',
-        emailId: payload.data.id,
-        to: payload.data.to_email_address,
-        status: payload.data.status,
-        otp: payload.data.data.otp_code
+        emailId: emailData.id,
+        to: emailData.to_email_address,
+        status: emailData.status,
+        otp: emailData.data.otp_code
       });
 
       // Store the OTP code in Redis
       await this.otpService.storeOtp(
-        payload.data.id,
-        payload.data.data.otp_code
+        emailData.id,
+        emailData.data.otp_code
       );
 
       return { 
         success: true,
-        message: `Successfully stored OTP for email ${payload.data.id}`
+        message: `Successfully stored OTP for email ${emailData.id}`
       };
-    } catch (error) {
-      console.error('Failed to process email event:', error);
-      throw new HttpException(
-        'Failed to process email event',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+    } else {
+      console.log('Ignoring non-email.created event:', payload.type);
+      return { success: true };
     }
   }
 }
