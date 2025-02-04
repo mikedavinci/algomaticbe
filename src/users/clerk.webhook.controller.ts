@@ -56,55 +56,72 @@ export class ClerkWebhookController {
     @Body() payload: any,
     @Req() request: any,
   ) {
-    console.log('Received Clerk webhook:', {
-      svixId,
-      svixTimestamp,
-      eventType: payload.type,
-      payload: JSON.stringify(payload).substring(0, 500),
-    });
-
-    if (!svixId || !svixTimestamp || !svixSignature) {
-      const error = 'Missing webhook verification headers';
-      console.error(error, { svixId, svixTimestamp, svixSignature });
-      throw new HttpException(error, HttpStatus.BAD_REQUEST);
-    }
-
-    const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
-    if (!webhookSecret) {
-      const error = 'Webhook secret not configured';
-      console.error(error);
-      throw new HttpException(error, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    // Verify webhook signature
-    const wh = new Webhook(webhookSecret);
-    let evt: any;
-
     try {
-      evt = wh.verify(
-        JSON.stringify(payload),
-        {
+      console.log('Received Clerk webhook:', {
+        svixId,
+        svixTimestamp,
+        eventType: payload.type,
+        payload: JSON.stringify(payload, null, 2).substring(0, 1000),
+        headers: request.headers,
+      });
+
+      if (!svixId || !svixTimestamp || !svixSignature) {
+        const error = 'Missing webhook verification headers';
+        console.error(error, { svixId, svixTimestamp, svixSignature });
+        throw new HttpException(error, HttpStatus.BAD_REQUEST);
+      }
+
+      const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
+      if (!webhookSecret) {
+        const error = 'Webhook secret not configured';
+        console.error(error);
+        throw new HttpException(error, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+
+      // Verify webhook signature
+      const wh = new Webhook(webhookSecret);
+
+      try {
+        const rawBody = request.rawBody;
+        if (!rawBody) {
+          throw new Error('No raw body available for webhook verification');
+        }
+
+        console.log('Verifying webhook with:', {
+          rawBody: rawBody.toString().substring(0, 500),
+          headers: {
+            'svix-id': svixId,
+            'svix-timestamp': svixTimestamp,
+            'svix-signature': svixSignature,
+          }
+        });
+
+        wh.verify(rawBody, {
           'svix-id': svixId,
           'svix-timestamp': svixTimestamp,
           'svix-signature': svixSignature,
-        },
-      );
-      console.log('Webhook signature verified successfully');
-    } catch (err) {
-      console.error('Webhook verification failed:', {
-        error: err.message,
-        stack: err.stack,
-        payload: JSON.stringify(payload).substring(0, 500),
-      });
-      throw new HttpException('Invalid webhook signature', HttpStatus.BAD_REQUEST);
-    }
+        });
+        console.log('Webhook signature verified successfully');
+      } catch (err) {
+        console.error('Webhook verification failed:', {
+          error: err.message,
+          stack: err.stack,
+          payload: JSON.stringify(payload).substring(0, 500),
+        });
+        throw new HttpException('Invalid webhook signature', HttpStatus.BAD_REQUEST);
+      }
 
-    // Handle different webhook events
-    try {
+      // Handle different webhook events
+      console.log('Processing webhook event:', {
+        type: payload.type,
+        data: JSON.stringify(payload.data, null, 2).substring(0, 500)
+      });
+
       switch (payload.type) {
         case 'user.created':
-          await this.handleUserCreated(payload.data);
-          break;
+          const result = await this.handleUserCreated(payload.data);
+          console.log('User creation completed:', result);
+          return result;
         case 'email.created':
           await this.handleEmailCreated(payload.data);
           break;
@@ -114,7 +131,12 @@ export class ClerkWebhookController {
 
       return { received: true };
     } catch (error) {
-      console.error('Error processing webhook:', error);
+      console.error('Error processing webhook:', {
+        error: error.message,
+        stack: error.stack,
+        type: payload?.type,
+        data: payload?.data ? JSON.stringify(payload.data).substring(0, 500) : null
+      });
       throw new HttpException(
         `Failed to process webhook: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
