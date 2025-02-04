@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { StripeService } from '../payments/stripe.service';
+import { HasuraService } from '../hasura/hasura.service';
 
 @Injectable()
 export class UsersService {
@@ -10,6 +11,7 @@ export class UsersService {
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
     private readonly stripeService: StripeService,
+    private readonly hasuraService: HasuraService,
   ) {}
 
   async createUser(id: string, email: string): Promise<User> {
@@ -30,7 +32,7 @@ export class UsersService {
       });
       console.log('User entity created:', user);
 
-      // Attempt to save to database
+      // Save to database using TypeORM
       console.log('Attempting to save user to database...');
       try {
         const savedUser = await this.usersRepository.save(user);
@@ -50,8 +52,6 @@ export class UsersService {
       console.error('Error in createUser:', {
         error: error.message,
         stack: error.stack,
-        id,
-        email
       });
       throw error;
     }
@@ -62,11 +62,35 @@ export class UsersService {
   }
 
   async updateMetadata(id: string, metadata: Record<string, any>): Promise<User> {
-    await this.usersRepository.update(id, { metadata });
-    const user = await this.findById(id);
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+    const updateMetadataMutation = `
+      mutation UpdateUserMetadata($id: uuid!, $metadata: jsonb) {
+        update_users(
+          where: { id: { _eq: $id } }
+          _set: { metadata: $metadata }
+        ) {
+          affected_rows
+        }
+      }
+    `;
+
+    try {
+      const result = await this.hasuraService.executeQuery(updateMetadataMutation, {
+        id,
+        metadata,
+      });
+
+      if (!result?.update_users?.affected_rows) {
+        throw new NotFoundException(`User with ID ${id} not found`);
+      }
+
+      const user = await this.findById(id);
+      if (!user) {
+        throw new NotFoundException(`User with ID ${id} not found`);
+      }
+      return user;
+    } catch (error) {
+      console.error('Error updating user metadata:', error);
+      throw error;
     }
-    return user;
   }
 }
