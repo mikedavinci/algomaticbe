@@ -7,11 +7,14 @@ import {
   Req,
   Body,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { ConfigService } from '@nestjs/config';
 import { Webhook } from 'svix';
 import { Public } from 'src/decorators/public.decorator';
 import { OtpService } from './otp.service';
+import { Repository } from 'typeorm';
+import { User } from '../entities/user.entity';
 
 interface ClerkEmailData {
   body: string;
@@ -56,10 +59,21 @@ interface ClerkUserData {
   email_addresses: Array<{
     id: string;
     email_address: string;
-    verified: boolean;
+    verification: {
+      status: string;
+      strategy: string;
+    };
   }>;
   primary_email_address_id: string;
-  image_url: string | null;
+  image_url: string;
+  profile_image_url: string;
+  first_name: string;
+  last_name: string;
+  created_at: number;
+  updated_at: number;
+  private_metadata: Record<string, any>;
+  public_metadata: Record<string, any>;
+  unsafe_metadata: Record<string, any>;
 }
 
 interface ClerkWebhookEvent {
@@ -84,6 +98,8 @@ interface ClerkWebhookEvent {
 @Controller('webhooks')
 export class ClerkWebhookController {
   constructor(
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
     private readonly otpService: OtpService,
@@ -188,7 +204,9 @@ export class ClerkWebhookController {
         console.log('Processing user data:', {
           id: userData.id,
           emailAddresses: userData.email_addresses,
-          primaryEmailId: userData.primary_email_address_id
+          primaryEmailId: userData.primary_email_address_id,
+          firstName: userData.first_name,
+          lastName: userData.last_name
         });
 
         const primaryEmail = userData.email_addresses?.find(
@@ -203,9 +221,13 @@ export class ClerkWebhookController {
           throw new Error('No primary email found for user');
         }
 
+        // Check if email is verified
+        const isEmailVerified = primaryEmail.verification?.status === 'verified';
+
         console.log('Calling UsersService.createUser with:', {
           id: userData.id,
-          email: primaryEmail.email_address
+          email: primaryEmail.email_address,
+          isEmailVerified
         });
 
         const newUser = await this.usersService.createUser(
@@ -213,10 +235,17 @@ export class ClerkWebhookController {
           primaryEmail.email_address
         );
 
+        // Update additional user fields
+        await this.usersRepository.update(userData.id, {
+          email_verified: isEmailVerified,
+          clerk_image_url: userData.image_url || userData.profile_image_url
+        });
+
         console.log('User creation completed:', {
           userId: newUser.id,
           email: newUser.email,
-          stripeCustomerId: newUser.stripe_customer_id
+          stripeCustomerId: newUser.stripe_customer_id,
+          isEmailVerified
         });
 
         return { 
