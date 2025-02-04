@@ -7,9 +7,14 @@ import { ConfigModule } from '@nestjs/config';
 import { OtpService } from './otp.service';
 import { HasuraService } from '../hasura/hasura.service';
 import { StripeService } from '../payments/stripe.service';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User]), ConfigModule],
+  imports: [
+    TypeOrmModule.forFeature([User]), 
+    ConfigModule,
+    RedisModule
+  ],
   providers: [UsersService, OtpService, HasuraService, StripeService],
   controllers: [ClerkWebhookController],
   exports: [UsersService],
