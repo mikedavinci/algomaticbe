@@ -163,15 +163,17 @@ export class ClerkWebhookController {
         imageUrl,
       });
 
-      // Call Hasura action to create user
+      // Call create_user mutation
       const createUserMutation = `
-        mutation CreateUser($id: String!, $email: String!, $emailVerified: Boolean, $imageUrl: String) {
-          create_user(id: $id, email: $email, email_verified: $emailVerified, image_url: $imageUrl) {
+        mutation CreateUser($id: String!, $email: String!, $email_verified: Boolean, $image_url: String) {
+          create_user(id: $id, email: $email, email_verified: $email_verified, image_url: $image_url) {
             id
             email
             email_verified
             clerk_image_url
             stripe_customer_id
+            created_at
+            updated_at
           }
         }
       `;
@@ -179,8 +181,8 @@ export class ClerkWebhookController {
       const result = await this.hasuraService.executeQuery(createUserMutation, {
         id: data.id,
         email: primaryEmail.email_address,
-        emailVerified: isEmailVerified,
-        imageUrl: imageUrl,
+        email_verified: isEmailVerified,
+        image_url: imageUrl,
       });
 
       console.log('User creation completed:', result);

@@ -28,131 +28,63 @@ export class UsersService {
     let stripeCustomerId: string | undefined;
 
     try {
-      // Start a transaction
-      const startTransactionMutation = `
-        mutation StartTransaction {
-          start_transaction {
+      // Create Stripe customer if needed
+      if (options.createStripeCustomer) {
+        this.logger.log('Creating Stripe customer...', { id, email });
+        try {
+          stripeCustomerId = await this.stripeService.createCustomer(id, email);
+          this.logger.log('Stripe customer created:', { stripeCustomerId });
+        } catch (error) {
+          this.logger.error('Failed to create Stripe customer:', error);
+          throw error;
+        }
+      }
+
+      // Create user in database
+      const createUserMutation = `
+        mutation CreateUser($user: users_insert_input!) {
+          insert_users_one(object: $user) {
             id
+            email
+            email_verified
+            clerk_image_url
+            stripe_customer_id
+            created_at
+            updated_at
           }
         }
       `;
 
-      const transactionResult = await this.hasuraService.executeQuery(startTransactionMutation);
-      const transactionId = transactionResult?.start_transaction?.id;
-
-      if (!transactionId) {
-        throw new Error('Failed to start database transaction');
-      }
-
-      try {
-        // Create Stripe customer if needed
-        if (options.createStripeCustomer) {
-          this.logger.log('Creating Stripe customer...', { id, email });
-          try {
-            stripeCustomerId = await this.stripeService.createCustomer(id, email);
-            this.logger.log('Stripe customer created successfully:', { stripeCustomerId });
-          } catch (stripeError) {
-            this.logger.error('Failed to create Stripe customer:', {
-              error: stripeError.message,
-              stack: stripeError.stack,
-            });
-            throw new Error(`Stripe customer creation failed: ${stripeError.message}`);
-          }
-        }
-
-        // Create user with all fields at once
-        const createUserMutation = `
-          mutation CreateUser(
-            $id: uuid!, 
-            $email: String!, 
-            $emailVerified: Boolean,
-            $imageUrl: String,
-            $stripeCustomerId: String
-          ) {
-            insert_users_one(object: {
-              id: $id,
-              email: $email,
-              email_verified: $emailVerified,
-              clerk_image_url: $imageUrl,
-              stripe_customer_id: $stripeCustomerId
-            }) {
-              id
-              email
-              email_verified
-              clerk_image_url
-              stripe_customer_id
-              created_at
-              updated_at
-            }
-          }
-        `;
-
-        const variables = {
-          id,
-          email,
-          emailVerified: options.emailVerified ?? false,
-          imageUrl: options.imageUrl,
-          stripeCustomerId,
-        };
-
-        const result = await this.hasuraService.executeQuery(createUserMutation, variables);
-
-        if (!result?.insert_users_one) {
-          throw new Error('Failed to create user in database');
-        }
-
-        // Commit the transaction
-        const commitTransactionMutation = `
-          mutation CommitTransaction($transactionId: uuid!) {
-            commit_transaction(transaction_id: $transactionId) {
-              id
-            }
-          }
-        `;
-
-        await this.hasuraService.executeQuery(commitTransactionMutation, {
-          transactionId,
-        });
-
-        this.logger.log('User created successfully:', result.insert_users_one);
-        return result.insert_users_one;
-      } catch (error) {
-        // Rollback the transaction
-        const rollbackTransactionMutation = `
-          mutation RollbackTransaction($transactionId: uuid!) {
-            rollback_transaction(transaction_id: $transactionId) {
-              id
-            }
-          }
-        `;
-
-        await this.hasuraService.executeQuery(rollbackTransactionMutation, {
-          transactionId,
-        });
-
-        // If we created a Stripe customer but the database operation failed,
-        // clean up the Stripe customer
-        if (stripeCustomerId) {
-          try {
-            await this.stripeService.deleteCustomer(stripeCustomerId);
-            this.logger.log('Rolled back Stripe customer creation:', { stripeCustomerId });
-          } catch (stripeError) {
-            this.logger.error('Failed to delete Stripe customer during rollback:', {
-              stripeCustomerId,
-              error: stripeError.message,
-            });
-          }
-        }
-
-        throw error;
-      }
-    } catch (error) {
-      this.logger.error('Error in createUser:', {
-        error: error.message,
-        stack: error.stack,
+      const userInput = {
         id,
         email,
+        email_verified: options.emailVerified,
+        clerk_image_url: options.imageUrl,
+        stripe_customer_id: stripeCustomerId,
+      };
+
+      const result = await this.hasuraService.executeQuery(createUserMutation, {
+        user: userInput,
       });
+
+      const user = result.insert_users_one;
+      if (!user) {
+        throw new Error('Failed to create user in database');
+      }
+
+      this.logger.log('User created successfully:', user);
+      return user;
+    } catch (error) {
+      // If we created a Stripe customer but failed to create the user,
+      // we should clean up the Stripe customer
+      if (stripeCustomerId) {
+        try {
+          await this.stripeService.deleteCustomer(stripeCustomerId);
+          this.logger.log('Cleaned up Stripe customer after failed user creation');
+        } catch (cleanupError) {
+          this.logger.error('Failed to clean up Stripe customer:', cleanupError);
+        }
+      }
       throw error;
     }
   }

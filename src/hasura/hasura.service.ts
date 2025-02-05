@@ -204,8 +204,141 @@ export class HasuraService implements OnModuleInit {
     }
   }
 
+  async deleteExistingAction(actionName: string): Promise<void> {
+    try {
+      const dropActionDefinition = {
+        type: 'drop_action',
+        args: {
+          name: actionName,
+          clear_data: true
+        }
+      };
+
+      await axios.post(
+        this.metadataEndpoint,
+        dropActionDefinition,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-hasura-admin-secret': this.adminSecret,
+          },
+        },
+      );
+
+      console.log(`Successfully deleted action: ${actionName}`);
+    } catch (error) {
+      // Ignore if action doesn't exist
+      if (error.response?.data?.error?.includes('action does not exist')) {
+        console.log(`Action ${actionName} does not exist, skipping deletion`);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  async clearCustomTypes(): Promise<void> {
+    try {
+      const clearTypesDefinition = {
+        type: 'set_custom_types',
+        args: {
+          scalars: [],
+          objects: [],
+          input_objects: [],
+          enums: []
+        }
+      };
+
+      await axios.post(
+        this.metadataEndpoint,
+        clearTypesDefinition,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-hasura-admin-secret': this.adminSecret,
+          },
+        },
+      );
+
+      console.log('Successfully cleared custom types');
+    } catch (error) {
+      console.error('Failed to clear custom types:', error);
+      throw error;
+    }
+  }
+
+  async registerUserCustomType(): Promise<void> {
+    try {
+      // First clear existing types
+      await this.clearCustomTypes();
+
+      const customTypeDefinition = {
+        type: 'set_custom_types',
+        args: {
+          scalars: [],
+          objects: [
+            {
+              name: 'User',
+              fields: [
+                {
+                  name: 'id',
+                  type: 'String!',
+                },
+                {
+                  name: 'email',
+                  type: 'String!',
+                },
+                {
+                  name: 'email_verified',
+                  type: 'Boolean',
+                },
+                {
+                  name: 'clerk_image_url',
+                  type: 'String',
+                },
+                {
+                  name: 'stripe_customer_id',
+                  type: 'String',
+                },
+                {
+                  name: 'created_at',
+                  type: 'String',
+                },
+                {
+                  name: 'updated_at',
+                  type: 'String',
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      await axios.post(
+        this.metadataEndpoint,
+        customTypeDefinition,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-hasura-admin-secret': this.adminSecret,
+          },
+        },
+      );
+
+      console.log('Successfully registered User custom type');
+    } catch (error) {
+      console.error('Failed to register User custom type:', error);
+      throw error;
+    }
+  }
+
   async registerCreateUserAction(): Promise<void> {
     try {
+      // First delete existing action if it exists
+      await this.deleteExistingAction('create_user');
+
+      // Then register the custom type
+      await this.registerUserCustomType();
+
       const actionDefinition = {
         type: 'create_action',
         args: {
@@ -233,6 +366,7 @@ export class HasuraService implements OnModuleInit {
             ],
             output_type: 'User',
             handler: `${this.configService.get('APP_URL')}/hasura/actions/create-user`,
+            forward_client_headers: true,
           },
         },
       };
