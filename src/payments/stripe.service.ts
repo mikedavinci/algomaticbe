@@ -116,20 +116,9 @@ export class StripeService {
     }
   }
 
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly hasuraService: HasuraService,
-  ) {
-    const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
-    if (!stripeSecretKey) {
-      throw new Error('STRIPE_SECRET_KEY is not configured');
-    }
-    this.stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2025-01-27.acacia',
-    });
-  }
-
   async createCustomer(userId: string, email: string): Promise<string> {
+    this.logger.log(`Creating Stripe customer for user ${userId} with email ${email}`);
+    
     try {
       // First, search for existing customers with the same email
       const existingCustomers = await this.stripe.customers.list({
@@ -140,7 +129,7 @@ export class StripeService {
       // If a customer exists with this email, return their ID
       if (existingCustomers.data.length > 0) {
         const existingCustomer = existingCustomers.data[0];
-        console.log('Found existing Stripe customer:', {
+        this.logger.log('Found existing Stripe customer:', {
           customerId: existingCustomer.id,
           email,
         });
@@ -155,37 +144,57 @@ export class StripeService {
         },
       });
 
-      console.log('Created new Stripe customer:', {
+      this.logger.log('Created new Stripe customer:', {
         customerId: customer.id,
         email,
       });
 
       const updateUserMutation = `
-        mutation UpdateUserStripeCustomer($userId: String!, $customerId: String!) {
+        mutation UpdateUserStripeCustomer($userId: uuid!, $customerId: String!) {
           update_users(
             where: { id: { _eq: $userId } }
             _set: { stripe_customer_id: $customerId }
           ) {
             affected_rows
+            returning {
+              id
+              email
+              stripe_customer_id
+            }
           }
         }
       `;
 
-      console.log('Updating user with Stripe customer ID:', {
+      this.logger.log('Updating user with Stripe customer ID:', {
         userId,
         customerId: customer.id
       });
 
-      await this.hasuraService.executeQuery(updateUserMutation, {
+      const updateResult = await this.hasuraService.executeQuery(updateUserMutation, {
         userId,
         customerId: customer.id,
       });
 
-      console.log('Successfully updated user with Stripe customer ID');
+      if (!updateResult?.update_users?.affected_rows) {
+        this.logger.error('Failed to update user with Stripe customer ID:', {
+          userId,
+          customerId: customer.id,
+          result: updateResult
+        });
+        // If we can't update the user, we should delete the Stripe customer to maintain consistency
+        await this.stripe.customers.del(customer.id);
+        throw new Error('Failed to update user with Stripe customer ID');
+      }
+
+      this.logger.log('Successfully updated user with Stripe customer ID:', {
+        userId,
+        customerId: customer.id,
+        affectedRows: updateResult.update_users.affected_rows
+      });
 
       return customer.id;
     } catch (error) {
-      console.error('Error creating Stripe customer:', {
+      this.logger.error('Error in createCustomer:', {
         error: error.message,
         stack: error.stack,
         userId,
@@ -268,5 +277,32 @@ export class StripeService {
       this.logger.error(`Error constructing Stripe event: ${error.message}`);
       throw error;
     }
+  }
+
+  async deleteCustomer(customerId: string): Promise<void> {
+    try {
+      await this.stripe.customers.del(customerId);
+      this.logger.log('Successfully deleted Stripe customer:', { customerId });
+    } catch (error) {
+      this.logger.error('Failed to delete Stripe customer:', {
+        customerId,
+        error: error.message,
+        stack: error.stack,
+      });
+      throw error;
+    }
+  }
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly hasuraService: HasuraService,
+  ) {
+    const stripeSecretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+    if (!stripeSecretKey) {
+      throw new Error('STRIPE_SECRET_KEY is not configured');
+    }
+    this.stripe = new Stripe(stripeSecretKey, {
+      apiVersion: '2025-01-27.acacia',
+    });
   }
 }
