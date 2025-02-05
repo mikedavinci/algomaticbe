@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { Webhook } from 'svix';
 import { Public } from 'src/decorators/public.decorator';
 import { OtpService } from './otp.service';
+import { HasuraService } from './hasura.service'; // Import HasuraService
 
 interface ClerkUserData {
   id: string;
@@ -44,6 +45,7 @@ export class ClerkWebhookController {
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
     private readonly otpService: OtpService,
+    private readonly hasuraService: HasuraService, // Inject HasuraService
   ) {}
 
   @Public()
@@ -161,23 +163,32 @@ export class ClerkWebhookController {
         imageUrl,
       });
 
-      // Create user with all fields using UsersService
-      const user = await this.usersService.createUser(
-        data.id,
-        primaryEmail.email_address,
-        {
-          emailVerified: isEmailVerified,
-          imageUrl: imageUrl,
-          createStripeCustomer: true,
-        },
-      );
+      // Call Hasura action to create user
+      const createUserMutation = `
+        mutation CreateUser($id: String!, $email: String!, $emailVerified: Boolean, $imageUrl: String) {
+          create_user(id: $id, email: $email, email_verified: $emailVerified, image_url: $imageUrl) {
+            id
+            email
+            email_verified
+            clerk_image_url
+            stripe_customer_id
+          }
+        }
+      `;
 
-      console.log('User creation completed:', user);
+      const result = await this.hasuraService.executeQuery(createUserMutation, {
+        id: data.id,
+        email: primaryEmail.email_address,
+        emailVerified: isEmailVerified,
+        imageUrl: imageUrl,
+      });
+
+      console.log('User creation completed:', result);
 
       return {
         success: true,
         message: `Successfully created user ${data.id}`,
-        user,
+        user: result.create_user,
       };
     } catch (error) {
       console.error('Failed to create user:', error);

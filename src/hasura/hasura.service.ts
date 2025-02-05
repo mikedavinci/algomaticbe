@@ -32,6 +32,9 @@ export class HasuraService implements OnModuleInit {
 
     // Set up metadata endpoint
     this.metadataEndpoint = endpoint.replace('/v1/graphql', '/v1/metadata');
+
+    // Register Hasura actions
+    await this.registerCreateUserAction();
   }
 
   async executeQuery<T = any>(query: string, variables?: any): Promise<T> {
@@ -197,6 +200,57 @@ export class HasuraService implements OnModuleInit {
       console.log(`Successfully created event trigger ${name} for table ${tableName}`);
     } catch (error: any) {
       console.error('Error creating event trigger:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  async registerCreateUserAction(): Promise<void> {
+    try {
+      const actionDefinition = {
+        type: 'create_action',
+        args: {
+          name: 'create_user',
+          definition: {
+            kind: 'synchronous',
+            type: 'mutation',
+            arguments: [
+              {
+                name: 'id',
+                type: 'String!',
+              },
+              {
+                name: 'email',
+                type: 'String!',
+              },
+              {
+                name: 'email_verified',
+                type: 'Boolean',
+              },
+              {
+                name: 'image_url',
+                type: 'String',
+              },
+            ],
+            output_type: 'User',
+            handler: `${this.configService.get('APP_URL')}/hasura/actions/create-user`,
+          },
+        },
+      };
+
+      await axios.post(
+        this.metadataEndpoint,
+        actionDefinition,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-hasura-admin-secret': this.adminSecret,
+          },
+        },
+      );
+
+      console.log('Successfully registered create_user action');
+    } catch (error) {
+      console.error('Failed to register create_user action:', error);
       throw error;
     }
   }
