@@ -27,6 +27,8 @@ interface ClerkUserData {
   primary_email_address_id: string;
   image_url: string;
   profile_image_url: string;
+  first_name: string;
+  last_name: string;
 }
 
 interface ClerkEmailData {
@@ -142,56 +144,59 @@ export class ClerkWebhookController {
     }
   }
 
+  private readonly createUserMutation = `
+    mutation CreateUser($id: String!, $email: String!, $emailVerified: Boolean, $clerkImageUrl: String, $metadata: jsonb) {
+      create_user(
+        id: $id, 
+        email: $email, 
+        emailVerified: $emailVerified, 
+        clerkImageUrl: $clerkImageUrl,
+        metadata: $metadata
+      ) {
+        id
+        email
+        email_verified
+        clerk_image_url
+        stripe_customer_id
+        metadata
+        created_at
+        updated_at
+      }
+    }
+  `;
+
   private async handleUserCreated(data: ClerkUserData) {
     console.log('Processing user.created event:', data);
     try {
-      const primaryEmail = data.email_addresses?.find(
+      const primaryEmail = data.email_addresses.find(
         (email) => email.id === data.primary_email_address_id,
       );
 
       if (!primaryEmail) {
-        throw new Error('No primary email found for user');
+        throw new Error('User has no primary email address');
       }
 
-      const isEmailVerified = primaryEmail.verification?.status === 'verified';
-      const imageUrl = data.image_url || data.profile_image_url;
+      const isEmailVerified = primaryEmail.verification !== null;
 
-      console.log('Creating user with:', {
-        id: data.id,
-        email: primaryEmail.email_address,
-        isEmailVerified,
-        imageUrl,
-      });
+      // Prepare metadata
+      const metadata = {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        clerk_id: data.id,
+        // Add any other relevant metadata
+      };
 
       // Call create_user mutation
-      const createUserMutation = `
-        mutation CreateUser($id: String!, $email: String!, $email_verified: Boolean, $image_url: String) {
-          create_user(id: $id, email: $email, email_verified: $email_verified, image_url: $image_url) {
-            id
-            email
-            email_verified
-            clerk_image_url
-            stripe_customer_id
-            created_at
-            updated_at
-          }
-        }
-      `;
-
-      const result = await this.hasuraService.executeQuery(createUserMutation, {
+      const result = await this.hasuraService.executeQuery(this.createUserMutation, {
         id: data.id,
         email: primaryEmail.email_address,
-        email_verified: isEmailVerified,
-        image_url: imageUrl,
+        emailVerified: isEmailVerified,
+        clerkImageUrl: data.image_url,
+        metadata: metadata,
       });
 
-      console.log('User creation completed:', result);
-
-      return {
-        success: true,
-        message: `Successfully created user ${data.id}`,
-        user: result.create_user,
-      };
+      console.log('User created successfully:', result);
+      return { success: true };
     } catch (error) {
       console.error('Failed to create user:', error);
       throw new Error(`Failed to create user: ${error.message}`);

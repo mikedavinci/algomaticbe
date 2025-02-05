@@ -5,14 +5,14 @@ export class User {
   @PrimaryColumn('uuid')
   id: string; // This will be the Clerk user ID
 
-  @Column({ unique: true })
+  @Column()
   email: string;
 
   @Column({ nullable: true })
   stripe_customer_id: string;
 
-  @Column('jsonb', { nullable: true })
-  metadata: Record<string, any>;
+  @Column({ type: 'jsonb', nullable: true })
+  metadata: any;
 
   @Column({ nullable: true })
   clerk_image_url: string;

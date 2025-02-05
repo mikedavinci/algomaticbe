@@ -50,8 +50,8 @@ import { CommonModule } from './common/common.module';
         type: 'postgres',
         url: configService.get('DATABASE_URL'),
         autoLoadEntities: true,
-        synchronize:
-          configService.get('NODE_ENV') !== 'production' ? true : true,
+        schema: 'public',
+        synchronize: true,
         ssl:
           configService.get('NODE_ENV') === 'production'
             ? {

@@ -8,8 +8,8 @@ interface CreateUserActionPayload {
     id: string;
     email: string;
     emailVerified?: boolean;
-    imageUrl?: string;
-    createStripeCustomer?: boolean;
+    clerkImageUrl?: string;
+    metadata?: any;
   };
   action: {
     name: string;
@@ -22,6 +22,7 @@ interface UserResponse {
   email_verified: boolean;
   clerk_image_url?: string;
   stripe_customer_id?: string;
+  metadata?: any;
   created_at: string;
   updated_at: string;
 }
@@ -37,12 +38,12 @@ export class HasuraActionsController {
   @Post('create-user')
   async createUser(@Body() payload: CreateUserActionPayload) {
     try {
-      const { id, email, emailVerified, imageUrl, createStripeCustomer } = payload.input;
+      const { id, email, emailVerified, clerkImageUrl, metadata } = payload.input;
 
       const user = await this.usersService.createUser(id, email, {
         emailVerified,
-        imageUrl,
-        createStripeCustomer,
+        imageUrl: clerkImageUrl,
+        metadata,
       });
 
       // Format response to match Hasura custom type
@@ -52,13 +53,14 @@ export class HasuraActionsController {
         email_verified: user.email_verified,
         clerk_image_url: user.clerk_image_url,
         stripe_customer_id: user.stripe_customer_id,
+        metadata: user.metadata,
         created_at: user.created_at.toISOString(),
         updated_at: user.updated_at.toISOString(),
       };
 
       return response;
     } catch (error) {
-      console.error('Error in create user action:', error);
+      console.error('Failed to create user:', error);
       throw error; // Let Hasura handle the error response
     }
   }
