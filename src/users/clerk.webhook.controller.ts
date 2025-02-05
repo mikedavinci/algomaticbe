@@ -145,12 +145,12 @@ export class ClerkWebhookController {
   }
 
   private readonly createUserMutation = `
-    mutation CreateUser($id: String!, $email: String!, $emailVerified: Boolean, $clerkImageUrl: String, $metadata: jsonb) {
+    mutation CreateUser($id: String!, $email: String!, $email_verified: Boolean, $clerk_image_url: String, $metadata: jsonb) {
       create_user(
         id: $id, 
         email: $email, 
-        emailVerified: $emailVerified, 
-        clerkImageUrl: $clerkImageUrl,
+        email_verified: $email_verified, 
+        clerk_image_url: $clerk_image_url,
         metadata: $metadata
       ) {
         id
@@ -183,15 +183,14 @@ export class ClerkWebhookController {
         first_name: data.first_name,
         last_name: data.last_name,
         clerk_id: data.id,
-        // Add any other relevant metadata
       };
 
       // Call create_user mutation
       const result = await this.hasuraService.executeQuery(this.createUserMutation, {
         id: data.id,
         email: primaryEmail.email_address,
-        emailVerified: isEmailVerified,
-        clerkImageUrl: data.image_url,
+        email_verified: isEmailVerified,
+        clerk_image_url: data.image_url,
         metadata: metadata,
       });
 

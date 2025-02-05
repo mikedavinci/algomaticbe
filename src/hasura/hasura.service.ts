@@ -269,8 +269,8 @@ export class HasuraService implements OnModuleInit {
             arguments: [
               { name: 'id', type: 'String!' },
               { name: 'email', type: 'String!' },
-              { name: 'emailVerified', type: 'Boolean' },
-              { name: 'clerkImageUrl', type: 'String' },
+              { name: 'email_verified', type: 'Boolean' },
+              { name: 'clerk_image_url', type: 'String' },
               { name: 'metadata', type: 'jsonb' },
             ],
             output_type: 'User',

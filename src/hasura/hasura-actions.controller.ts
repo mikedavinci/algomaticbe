@@ -40,10 +40,12 @@ export class HasuraActionsController {
     try {
       const { id, email, emailVerified, clerkImageUrl, metadata } = payload.input;
 
+      // Create user with TypeORM
       const user = await this.usersService.createUser(id, email, {
         emailVerified,
         imageUrl: clerkImageUrl,
         metadata,
+        createStripeCustomer: true,
       });
 
       // Format response to match Hasura custom type
@@ -61,7 +63,7 @@ export class HasuraActionsController {
       return response;
     } catch (error) {
       console.error('Failed to create user:', error);
-      throw error; // Let Hasura handle the error response
+      throw error;
     }
   }
 }
