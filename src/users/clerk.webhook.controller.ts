@@ -12,7 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { Webhook } from 'svix';
 import { Public } from 'src/decorators/public.decorator';
 import { OtpService } from './otp.service';
-import { HasuraService } from './hasura.service'; // Import HasuraService
+import { HasuraService } from 'src/hasura/hasura.service';
 
 interface ClerkUserData {
   id: string;
@@ -45,7 +45,7 @@ export class ClerkWebhookController {
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
     private readonly otpService: OtpService,
-    private readonly hasuraService: HasuraService, // Inject HasuraService
+    private readonly hasuraService: HasuraService,
   ) {}
 
   @Public()
