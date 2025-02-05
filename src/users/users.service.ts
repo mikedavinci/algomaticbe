@@ -36,26 +36,48 @@ export class UsersService {
       // Create Stripe customer if needed
       let stripeCustomerId: string | undefined;
       if (options.createStripeCustomer) {
-        stripeCustomerId = await this.stripeService.createCustomer(id, email);
-        this.logger.log('Created Stripe customer:', { stripeCustomerId });
+        try {
+          stripeCustomerId = await this.stripeService.createCustomer(id, email);
+          this.logger.log('Created Stripe customer:', { stripeCustomerId });
+        } catch (stripeError) {
+          this.logger.error('Failed to create Stripe customer:', stripeError);
+          throw new Error(`Stripe customer creation failed: ${stripeError.message}`);
+        }
       }
 
       // Create user in database
-      const user = this.usersRepository.create({
-        id,
-        email,
-        email_verified: options.emailVerified,
-        clerk_image_url: options.imageUrl,
-        stripe_customer_id: stripeCustomerId,
-        metadata: options.metadata,
-      });
+      try {
+        const user = this.usersRepository.create({
+          id,
+          email,
+          email_verified: options.emailVerified,
+          clerk_image_url: options.imageUrl,
+          stripe_customer_id: stripeCustomerId,
+          metadata: options.metadata,
+        });
 
-      await this.usersRepository.save(user);
-      this.logger.log('Saved user to database:', { userId: user.id });
+        this.logger.log('Created user entity:', user);
 
-      return user;
+        const savedUser = await this.usersRepository.save(user);
+        this.logger.log('Saved user to database:', savedUser);
+
+        return savedUser;
+      } catch (dbError) {
+        // If database save fails and we created a Stripe customer, clean it up
+        if (stripeCustomerId) {
+          try {
+            await this.stripeService.deleteCustomer(stripeCustomerId);
+            this.logger.log('Cleaned up Stripe customer after database error');
+          } catch (cleanupError) {
+            this.logger.error('Failed to clean up Stripe customer:', cleanupError);
+          }
+        }
+        this.logger.error('Failed to save user to database:', dbError);
+        throw new Error(`Database save failed: ${dbError.message}`);
+      }
     } catch (error) {
       this.logger.error('Failed to create user:', error);
+      this.logger.error('Error stack:', error.stack);
       throw error;
     }
   }

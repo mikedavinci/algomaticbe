@@ -7,8 +7,8 @@ interface CreateUserActionPayload {
   input: {
     id: string;
     email: string;
-    emailVerified?: boolean;
-    clerkImageUrl?: string;
+    email_verified?: boolean;
+    clerk_image_url?: string;
     metadata?: any;
   };
   action: {
@@ -37,16 +37,28 @@ export class HasuraActionsController {
   @Public()
   @Post('create-user')
   async createUser(@Body() payload: CreateUserActionPayload) {
+    console.log('Received create user request:', JSON.stringify(payload, null, 2));
+    
     try {
-      const { id, email, emailVerified, clerkImageUrl, metadata } = payload.input;
+      const { id, email, email_verified, clerk_image_url, metadata } = payload.input;
+
+      console.log('Creating user with:', {
+        id,
+        email,
+        email_verified,
+        clerk_image_url,
+        metadata
+      });
 
       // Create user with TypeORM
       const user = await this.usersService.createUser(id, email, {
-        emailVerified,
-        imageUrl: clerkImageUrl,
+        emailVerified: email_verified,
+        imageUrl: clerk_image_url,
         metadata,
         createStripeCustomer: true,
       });
+
+      console.log('User created successfully:', user);
 
       // Format response to match Hasura custom type
       const response: UserResponse = {
@@ -60,10 +72,13 @@ export class HasuraActionsController {
         updated_at: user.updated_at.toISOString(),
       };
 
+      console.log('Sending response:', response);
       return response;
     } catch (error) {
       console.error('Failed to create user:', error);
-      throw error;
+      console.error('Error stack:', error.stack);
+      // Rethrow with more context
+      throw new Error(`Failed to create user: ${error.message}`);
     }
   }
 }
