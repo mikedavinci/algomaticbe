@@ -8,21 +8,26 @@ import { json } from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     cors: true,
-    bodyParser: true,
+    bodyParser: false, // Disable default body parser
   });
   app.use(cookieParser());
 
-  // Configure JSON parser with higher limit for webhooks
+  // Configure JSON parser with raw body access for webhook route
   app.use('/webhooks/clerk', json({
-    limit: '5mb',
+    limit: '10mb',
     verify: (req: any, res: any, buf: Buffer) => {
-      // Store raw body for webhook signature verification
-      req.rawBody = buf;
+      req.rawBody = buf.toString('utf8');
     }
   }));
 
   // Default JSON parser for other routes
-  app.use(json());
+  app.use(json({ limit: '5mb' }));
+
+  // Add request logging middleware
+  app.use((req: any, res: any, next: any) => {
+    console.log(`Incoming ${req.method} request to ${req.url}`);
+    next();
+  });
 
   // Global validation pipe
   app.useGlobalPipes(

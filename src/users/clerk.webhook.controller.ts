@@ -38,7 +38,7 @@ interface ClerkEmailData {
   email_address_id: string;
 }
 
-@Controller('webhook/clerk')
+@Controller('webhooks/clerk')
 export class ClerkWebhookController {
   constructor(
     private readonly usersService: UsersService,
@@ -69,7 +69,9 @@ export class ClerkWebhookController {
       throw new HttpException(error, HttpStatus.BAD_REQUEST);
     }
 
-    const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
+    const webhookSecret = this.configService.get<string>(
+      'CLERK_WEBHOOK_SECRET',
+    );
     if (!webhookSecret) {
       const error = 'Webhook secret not configured';
       console.error(error);
@@ -96,14 +98,17 @@ export class ClerkWebhookController {
         error: err.message,
         stack: err.stack,
       });
-      throw new HttpException('Invalid webhook signature', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Invalid webhook signature',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // Handle different webhook events
     try {
       console.log('Processing webhook event:', {
         type: payload.type,
-        data: JSON.stringify(payload.data, null, 2).substring(0, 500)
+        data: JSON.stringify(payload.data, null, 2).substring(0, 500),
       });
 
       switch (payload.type) {
@@ -124,7 +129,9 @@ export class ClerkWebhookController {
         error: error.message,
         stack: error.stack,
         type: payload?.type,
-        data: payload?.data ? JSON.stringify(payload.data).substring(0, 500) : null
+        data: payload?.data
+          ? JSON.stringify(payload.data).substring(0, 500)
+          : null,
       });
       throw new HttpException(
         `Failed to process webhook: ${error.message}`,
@@ -162,7 +169,7 @@ export class ClerkWebhookController {
           emailVerified: isEmailVerified,
           imageUrl: imageUrl,
           createStripeCustomer: true,
-        }
+        },
       );
 
       console.log('User creation completed:', user);
