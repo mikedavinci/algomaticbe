@@ -2,7 +2,7 @@ import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn } fro
 
 @Entity('users')
 export class User {
-  @PrimaryColumn('uuid')
+  @PrimaryColumn('text')  // Changed from 'uuid' to 'text' to accept Clerk IDs
   id: string; // This will be the Clerk user ID
 
   @Column()
